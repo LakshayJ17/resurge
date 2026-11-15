@@ -1,0 +1,90 @@
+# Resurge - extra MCP search servers.
+#
+# Copy this file to config/mcp_servers.yaml and set `enabled: true` on the
+# servers you want. Each enabled server becomes a search backend named after
+# `name`, used for the listed `kinds` (web, news, community, reference, code)
+# after any key-based premium APIs and before the free DDGS / Parallel fallbacks.
+#
+# Fields
+#   name              unique backend name (shown by `resurge doctor` and in router stats)
+#   enabled           false keeps the entry without using it
+#   transport         http (streamable HTTP) | sse | stdio
+#   url, headers      for http / sse; values may use ${ENV_VAR} or ${ENV_VAR:-default}
+#   command, args,    for stdio - the server is launched as a subprocess
+#   env, cwd            (env values may use ${ENV_VAR} too)
+#   search_tool       tool to call (default: the first tool whose name contains "search")
+#   query_arg         argument that receives the query (default: inferred from the tool schema)
+#   max_results_arg   argument that receives the result count (default: inferred)
+#   extra_args        fixed arguments merged into every call
+#   kinds             research kinds this server serves (default: [web])
+#   augment_queries   add site:reddit.com / site:github.com for community / code (default: true)
+#   min_interval_s    pacing between calls to this server (default 1.0 s)
+#   timeout_s, connect_timeout_s, log_stderr, snippet_chars
+#
+# A server whose ${VARS} are unset, or whose stdio command is not installed, is
+# reported as unavailable - it never breaks a research run. Never commit keys:
+# keep them in .env / the environment and reference them as ${VAR}.
+
+servers:
+  # Parallel's hosted Search MCP is already built in as `parallel_mcp` (free, no key).
+  # Add it explicitly only to use your own key. Its web_search tool takes
+  # `objective` + `search_queries`, which are filled in automatically.
+  - name: parallel_keyed
+    enabled: false
+    transport: http
+    url: https://mcp.parallel.ai/mcp
+    headers:
+      Authorization: "Bearer ${PARALLEL_API_KEY}"
+    search_tool: web_search
+    kinds: [web, news, community]
+
+  # Brave Search MCP server (official): https://github.com/brave/brave-search-mcp-server
+  # Needs Node.js (npx) and a Brave Search API key.
+  - name: brave_mcp
+    enabled: false
+    transport: stdio
+    command: npx
+    args: ["-y", "@brave/brave-search-mcp-server", "--transport", "stdio"]
+    env:
+      BRAVE_API_KEY: "${BRAVE_API_KEY}"
+    search_tool: brave_web_search
+    query_arg: query
+    max_results_arg: count
+    kinds: [web]
+
+  # Exa's hosted MCP server: https://docs.exa.ai/reference/exa-mcp
+  - name: exa_mcp
+    enabled: false
+    transport: http
+    url: "https://mcp.exa.ai/mcp?exaApiKey=${EXA_API_KEY}"
+    search_tool: web_search_exa
+    query_arg: query
+    max_results_arg: numResults
+    kinds: [web, news]
+
+  # Firecrawl MCP server: https://github.com/mendableai/firecrawl-mcp-server
+  - name: firecrawl_mcp
+    enabled: false
+    transport: stdio
+    command: npx
+    args: ["-y", "firecrawl-mcp"]
+    env:
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
+    search_tool: firecrawl_search
+    query_arg: query
+    max_results_arg: limit
+    kinds: [web]
+    timeout_s: 60
+
+  # A local SearXNG instance through the community SearXNG MCP server
+  # (https://github.com/ihor-sokoliuk/mcp-searxng) - no API key needed.
+  - name: searxng_mcp
+    enabled: false
+    transport: stdio
+    command: npx
+    args: ["-y", "mcp-searxng"]
+    env:
+      SEARXNG_URL: "${SEARXNG_URL:-http://localhost:8080}"
+    search_tool: searxng_web_search
+    query_arg: query
+    kinds: [web, news]

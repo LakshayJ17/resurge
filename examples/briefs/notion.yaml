@@ -1,0 +1,12 @@
+# resurge run --brief examples/briefs/notion.yaml
+target: Notion
+target_url: https://www.notion.com
+industry: Collaborative workspace / productivity software
+region: global
+competitors: [Coda, ClickUp, Confluence]
+depth: standard
+audience: product and go-to-market leadership
+focus_areas: [pricing, AI features, enterprise readiness]
+questions:
+  - How are competitors packaging and pricing AI features?
+  - Which competitor is winning mid-market teams, and why?

@@ -1,0 +1,9 @@
+# A market (not a single company): Resurge discovers the leading players itself.
+# resurge run --brief examples/briefs/ai-note-takers-market.yaml
+target: AI meeting note-taker apps
+industry: Productivity / meeting intelligence
+depth: quick
+max_competitors: 4
+focus_areas: [pricing, integrations, customer sentiment]
+questions:
+  - Which tools offer a usable free tier and what are its limits?

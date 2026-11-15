@@ -1,0 +1,80 @@
+{% extends "base.html.j2" %}
+{% block title %}Pricing{% endblock %}
+{% block heading %}Pricing{% endblock %}
+{% block lede %}<p class="lede">List prices from each company's own pages, in US dollars. Yearly totals are list price × seats × 12, before discounts and add-ons.</p>{% endblock %}
+{% block content %}
+{% set subjects = ([target_profile] if target_profile else []) + comps %}
+<section>
+  <h2>Plans side by side</h2>
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Company</th><th>Free plan</th><th>Cheapest paid plan</th><th>Most expensive listed</th><th>Enterprise</th></tr></thead>
+    <tbody>
+    {% for p in subjects %}{% set ps = summaries[p.name] %}
+      <tr{% if p.category == "target" %} class="you"{% endif %}>
+        <th scope="row">{% if p.category == "target" %}{{ p.name }} <span class="you-tag">(you)</span>{% else %}<a href="competitors/{{ p.name | slug }}.html">{{ p.name }}</a>{% endif %}</th>
+        <td>{% if ps.free %}{{ ps.free.tier.name }}{{ cite(ps.free.tier.fact_ids, 1) }}{% else %}<span class="muted">None listed</span>{% endif %}</td>
+        <td>{% if ps.entry %}{{ ui.price(ps.entry) }}<br><span class="small muted">{{ ps.entry.tier.name }}</span>{{ cite(ps.entry.tier.fact_ids, 1) }}{% else %}<span class="muted">Not published</span>{% endif %}</td>
+        <td>{% if ps.top %}{{ ui.price(ps.top) }}<br><span class="small muted">{{ ps.top.tier.name }}</span>{{ cite(ps.top.tier.fact_ids, 1) }}{% else %}<span class="muted">None</span>{% endif %}</td>
+        <td>{% if ps.custom %}{{ ps.custom.tier.name }}<br><span class="small muted">price on request</span>{% else %}<span class="muted">None listed</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% set missing = subjects | rejectattr("pricing") | map(attribute="name") | list %}
+  {% if missing %}<p class="note">No published prices found for {{ missing | join(", ") }}. Some companies quote on request or show prices only after sign-up.</p>{% endif %}
+</section>
+
+{% if charts.entry_price or charts.cost_curve or charts.cost_50 %}
+<section>
+  <h2>Cost compared</h2>
+  {{ ui.fig(charts.entry_price, "Cheapest paid plan", "US dollars a month; per seat unless marked flat.") }}
+  {{ ui.fig(charts.cost_curve, "Yearly cost by team size", "Each company's cheapest paid plan. Flat-priced plans stay level; per-seat plans rise with every seat.") }}
+  {{ ui.fig(charts.cost_50, "What " ~ SEATS[1] ~ " seats cost a year", "Every paid plan with a published price.") }}
+</section>
+{% endif %}
+
+{% set ns = namespace(rows=[]) %}
+{% for p in subjects %}{% for tv in summaries[p.name].tiers %}{% if tv.annual %}{% set ns.rows = ns.rows + [tv] %}{% endif %}{% endfor %}{% endfor %}
+{% if ns.rows %}
+<section>
+  <h2>Yearly cost table</h2>
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Plan</th><th>List price</th>{% for s in SEATS %}<th class="num">{{ s }} seats</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for tv in ns.rows | sort(attribute="monthly") %}
+      <tr{% if tv.competitor == target %} class="you"{% endif %}>
+        <th scope="row">{{ tv.competitor }}, {{ tv.tier.name }}</th>
+        <td>{{ ui.price(tv) }}{{ cite(tv.tier.fact_ids, 1) }}{% if tv.per_seat is none %} <span class="small muted">(per seat assumed)</span>{% endif %}</td>
+        {% for s in SEATS %}<td class="num">{{ tv.annual[s] | usd(False) }}</td>{% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section>
+  <h2>Every plan found</h2>
+  {% for p in subjects %}{% set ps = summaries[p.name] %}
+  {% if ps.tiers %}
+  <h3 class="h-sub-company">{{ p.name }}{% if p.pricing_model %} <span class="muted small">{{ p.pricing_model | replace("_", " ") }}</span>{% endif %}</h3>
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Plan</th><th>Price</th><th>Billing</th><th>Includes</th></tr></thead>
+    <tbody>
+    {% for tv in ps.tiers %}
+      <tr><th scope="row">{{ tv.tier.name }}</th><td>{{ ui.price(tv) }}{{ cite(tv.tier.fact_ids, 2) }}</td><td>{{ tv.tier.billing or "" }}</td>
+        <td class="wide small">{{ tv.tier.highlights | join("; ") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p></p>
+  {% endif %}
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html.j2" %}
+{% set es = report.executive_summary %}
+{% block title %}Overview{% endblock %}
+{% block heading %}{{ es.headline or (target ~ " competitor report") }}{% endblock %}
+{% block lede %}
+{% if es.summary %}<p class="lede">{{ cite.text(es.summary) }}</p>{% endif %}
+<p class="meta">{{ comps | length }} competitors, {{ metrics.facts_usable }} verified facts from {{ n_sources }} public sources, {{ metrics.coverage | pct }} of planned topics covered.</p>
+{% endblock %}
+{% block content %}
+{% set first = (recs_by_time["now"] + recs_by_time["next"] + recs_by_time["later"])[:3] %}
+{% if first %}
+<section>
+  <div class="sec-head"><h2>What to do first</h2><a href="actions.html">Full action plan</a></div>
+  <ol class="rows">
+    {% for r in first %}
+    <li>
+      <div class="row-grid">
+        <div class="row-n">{{ loop.index }}</div>
+        <div class="row-main">
+          <h3>{{ r.title }}{{ cite(r.fact_ids, 2) }}</h3>
+          {% if r.first_step %}<p>First step: {{ r.first_step }}</p>{% elif r.rationale %}<p>{{ cite.text(r.rationale | clip(220)) }}</p>{% endif %}
+          {% if r.owner or r.metric %}<p class="small muted">{% if r.owner %}{{ r.owner }}{% endif %}{% if r.owner and r.metric %}; {% endif %}{% if r.metric %}success measure: {{ r.metric }}{% endif %}</p>{% endif %}
+        </div>
+        <div class="row-side">{{ ui.when_label(r.timeframe) }}</div>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+{% if es.key_findings %}
+<section>
+  <h2>Findings</h2>
+  {% if es.key_findings | selectattr("so_what") | list %}
+  <div class="table-wrap">
+  <table class="t findings">
+    <thead><tr><th>What we found</th><th>What it means for {{ target }}</th></tr></thead>
+    <tbody>
+    {% for k in es.key_findings %}
+      <tr><td>{{ cite.text(k.text) }}{{ cite(k.fact_ids, 3) }}</td><td>{{ cite.text(k.so_what) if k.so_what else "" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <ul class="measure">{% for k in es.key_findings %}<li>{{ cite.text(k.text) }}{{ cite(k.fact_ids, 3) }}</li>{% endfor %}</ul>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if comps %}
+<section>
+  <div class="sec-head"><h2>Competitors</h2><a href="pricing.html">Pricing compared</a></div>
+  {{ ui.fig(charts.threat, "Threat to " ~ target, "Analyst rating from 1 (low) to 5 (critical), based on the evidence in each profile.") }}
+  {{ ui.fig(charts.entry_price, "Cheapest paid plan", "List price in US dollars a month. Companies without a published price are left out.") }}
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Company</th><th>Threat</th><th>Best for</th><th>Cheapest paid plan</th><th>Latest move</th></tr></thead>
+    <tbody>
+    {% for p in comps_ranked %}
+    {% set ps = summaries[p.name] %}
+    {% set mv = latest_move.get(p.name) %}
+      <tr>
+        <th scope="row"><a href="competitors/{{ p.name | slug }}.html">{{ p.name }}</a></th>
+        <td class="num">{% if p.threat_level %}{{ p.threat_level }} of 5{% else %}<span class="muted">not rated</span>{% endif %}</td>
+        <td class="wide small">{{ (p.best_for or p.summary) | first_sentence(150) }}</td>
+        <td class="small">{% if ps.entry %}{{ ps.entry.monthly | usd }} {{ ps.entry.tier.name }}{% elif ps.free %}Free plan only{% else %}<span class="muted">Not published</span>{% endif %}</td>
+        <td class="wide small">{% if mv %}{% if mv.when != "Undated" %}{{ mv.when }}: {% endif %}{{ cite.text(mv.text | clip(120)) }}{% else %}<span class="muted">None found</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% if es.top_threats or es.top_opportunities %}
+<section>
+  <h2>Threats and openings</h2>
+  <div class="cols">
+    <div class="col"><h3>Threats</h3><ul>{% for t in es.top_threats %}<li>{{ cite.text(t) }}</li>{% endfor %}</ul></div>
+    <div class="col"><h3>Openings</h3><ul>{% for t in es.top_opportunities %}<li>{{ cite.text(t) }}</li>{% endfor %}</ul></div>
+  </div>
+</section>
+{% endif %}
+
+{% if report.changes_since_last_run %}
+<section>
+  <h2>Changes since the last run</h2>
+  <ul class="measure">{% for c in report.changes_since_last_run[:10] %}<li>{{ c }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<p class="note">For a specific question, such as {{ ("“" ~ suggestions[0] ~ "”") if suggestions else "pricing for a given team size" }}, use <a href="ask.html">Ask the research</a>. Answers cite the same sources as this report.</p>
+{% endblock %}

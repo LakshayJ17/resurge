@@ -1,0 +1,38 @@
+{% extends "base.html.j2" %}
+{% set es = report.executive_summary %}
+{% block title %}Action plan{% endblock %}
+{% block heading %}Action plan{% endblock %}
+{% block lede %}<p class="lede">{{ report.recommendations | length }} moves for {{ target }}, in the order to start them.</p>{% endblock %}
+{% block content %}
+{% set ns = namespace(n=0) %}
+{% for key, label, span in TIMEFRAMES %}
+{% set recs = recs_by_time[key] %}
+{% if recs %}
+<section>
+  <h2>{{ label }}: {{ span }}</h2>
+  <ol class="rows">
+    {% for r in recs %}{% set ns.n = ns.n + 1 %}{{ ui.rec_row(r, ns.n) }}{% endfor %}
+  </ol>
+</section>
+{% endif %}
+{% endfor %}
+{% if not report.recommendations %}<p class="muted">No recommendations were produced for this run.</p>{% endif %}
+
+{% if report.market.white_space %}
+<section>
+  <h2>Gaps no competitor fills</h2>
+  {{ ui.insights(report.market.white_space) }}
+</section>
+{% endif %}
+
+{% if es.top_threats or es.top_opportunities %}
+<section>
+  <h2>Threats and openings</h2>
+  <div class="cols">
+    <div class="col"><h3>Threats</h3><ul>{% for t in es.top_threats %}<li>{{ cite.text(t) }}</li>{% endfor %}</ul></div>
+    <div class="col"><h3>Openings</h3><ul>{% for t in es.top_opportunities %}<li>{{ cite.text(t) }}</li>{% endfor %}</ul></div>
+  </div>
+</section>
+{% endif %}
+<p class="note">The threats behind these moves, and the signs that would make them urgent, are on <a href="risks.html">Risks to watch</a>.</p>
+{% endblock %}

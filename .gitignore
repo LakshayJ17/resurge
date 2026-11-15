@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/
+reports/
+*.egg-info/
+dist/
+build/
+.DS_Store
+credentials/
+service_account*.json
+
+# private interview notes
+INTERVIEW_PREP.md

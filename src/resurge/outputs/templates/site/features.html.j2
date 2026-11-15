@@ -1,0 +1,66 @@
+{% extends "base.html.j2" %}
+{% block title %}Features{% endblock %}
+{% block heading %}Features{% endblock %}
+{% block lede %}<p class="lede">Which product offers what, according to public sources. “Not found” means no source we read mentioned it, not that the product lacks it.</p>{% endblock %}
+{% block content %}
+{% set mv = matrix %}
+{% if mv.features %}
+{% set has_target = target in mv.subjects %}
+<section>
+  <h2>Coverage</h2>
+  {{ ui.fig(charts.features, "Capabilities confirmed by public sources", "Out of " ~ (mv.features | length) ~ " capabilities compared below.") }}
+  {% if (has_target and (mv.you_lead or mv.you_trail)) or mv.table_stakes %}
+  <div class="{{ 'cols-3' if has_target else 'cols' }}">
+    {% if has_target %}
+    <div class="col">
+      <h3>Where {{ target }} leads</h3>
+      {% if mv.you_lead %}<ul>{% for f, who in mv.you_lead %}<li>{{ f }} <span class="muted small">(not found for {{ who | join(", ") }})</span></li>{% endfor %}</ul>
+      {% else %}<p class="muted small">No clear lead in the evidence.</p>{% endif %}
+    </div>
+    <div class="col">
+      <h3>Where competitors lead</h3>
+      {% if mv.you_trail %}<ul>{% for f, who in mv.you_trail %}<li>{{ f }} <span class="muted small">({{ who | join(", ") }})</span></li>{% endfor %}</ul>
+      {% else %}<p class="muted small">No gap in the evidence.</p>{% endif %}
+    </div>
+    {% endif %}
+    <div class="col">
+      <h3>Offered by everyone</h3>
+      {% if mv.table_stakes %}<ul>{% for f in mv.table_stakes %}<li>{{ f }}</li>{% endfor %}</ul>
+      {% else %}<p class="muted small">No capability is confirmed for every product.</p>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+<section>
+  <h2>Comparison</h2>
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Capability</th>{% for s in mv.subjects %}<th>{{ s }}{% if s == target %} <span class="you-tag">(you)</span>{% endif %}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for feat in mv.features %}
+      <tr><th scope="row">{{ feat }}</th>
+        {% for s in mv.subjects %}{% set c = mv.cells.get((feat, s)) %}
+        <td>{{ ui.status_cell(c) }}{% if c and c.note %}<div class="cell-note">{{ c.note | clip(80) }}</div>{% endif %}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% else %}
+<p class="muted">Not enough product evidence was found to compare features in this run.</p>
+{% endif %}
+
+{% set feats = comps | selectattr("key_features") | list %}
+{% if feats %}
+<section>
+  <h2>Main features by company</h2>
+  <div class="cols-3">
+    {% for p in feats %}
+    <div class="col"><h3>{{ p.name }}</h3><ul class="small">{% for f in p.key_features[:8] %}<li>{{ f }}</li>{% endfor %}</ul></div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

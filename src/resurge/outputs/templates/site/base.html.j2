@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+<meta name="referrer" content="no-referrer">
+<title>{% block title %}{% endblock %} · {{ target }} competitor report</title>
+<style>{% include "style.css" %}</style>
+</head>
+<body>
+{% import "macros.j2" as ui with context %}
+<div class="layout">
+  <nav class="sidebar" aria-label="Report sections">
+    <div class="brand">
+      <div class="brand-title">{{ target }}</div>
+      <div class="brand-sub">Competitor report, {{ generated }}</div>
+    </div>
+    <ul class="nav">
+      {% for key, label in pages %}
+      <li><a href="{{ root }}{{ key }}.html"{% if page == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+      {% endfor %}
+    </ul>
+    {% if comp_pages %}
+    <div class="nav-head">Competitors</div>
+    <ul class="nav">
+      {% for name, href, lvl in comp_pages %}
+      <li><a href="{{ root }}{{ href }}"{% if page == name %} aria-current="page"{% endif %}>{{ name }}{% if lvl %}<span class="nav-level" title="Threat {{ lvl }} of 5">{{ lvl }}/5</span>{% endif %}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <div class="nav-head">Reference</div>
+    <ul class="nav">
+      {% for key, label in tail %}
+      <li><a href="{{ root }}{{ key }}.html"{% if page == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+  <main class="main" id="top">
+    <header class="page-head">
+      <h1>{% block heading %}{% endblock %}</h1>
+      {% block lede %}{% endblock %}
+    </header>
+    {% block content %}{% endblock %}
+    {% set notes = cite.entries() %}
+    {% if notes %}
+    <section class="footnotes" aria-label="Sources cited on this page">
+      <h2>Sources cited on this page</h2>
+      <ol>
+        {% for n, f in notes %}
+        {% set url = safe_url(f.source_urls[0]) if f.source_urls else None %}
+        <li id="cite-{{ n }}" value="{{ n }}">
+          {{ f.claim | clip(180) }}
+          {% if f.quote %}<span class="fn-quote">“{{ f.quote | clip(200) }}”</span>{% endif %}
+          <span class="fn-meta">
+            {% if url %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer">{{ url | domain }}</a>{% endif %}{% if f.as_of %}, {{ f.as_of }}{% endif %}; confidence {{ f.confidence | pct }};
+            <a href="{{ root }}sources.html#f-{{ f.id | lower }}">evidence</a>
+          </span>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+    <footer class="foot">
+      Prepared by Resurge on {{ generated }} from {{ metrics.facts_usable }} verified facts and {{ n_sources }} public sources.
+      Research by AI agents with quote and second-model checks; confirm figures before you rely on them.
+    </footer>
+  </main>
+</div>
+{% if script %}<script>{{ script }}</script>{% endif %}
+</body>
+</html>

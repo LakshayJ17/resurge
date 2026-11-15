@@ -1,0 +1,125 @@
+{% extends "base.html.j2" %}
+{% set p = prof %}
+{% set ps = summaries[p.name] %}
+{% set hh = h2h(p.name) %}
+{% set bc = battlecard(p.name) %}
+{% block title %}{{ p.name }}{% endblock %}
+{% block heading %}{{ p.name }}{% endblock %}
+{% block lede %}
+{% if p.summary %}<p class="lede">{{ cite.text(p.summary) }}</p>{% endif %}
+<p class="meta">{{ ui.threat(p.threat_level) }}{% if p.category %}; {{ p.category }} competitor{% endif %}{% if p.website %}; {{ ui.ext(p.website) }}{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% if p.threat_rationale %}<p class="verdict">{{ cite.text(p.threat_rationale) }}</p>{% endif %}
+
+{% set snap = [("Best for", p.best_for), ("Founded", p.founded), ("Headquarters", p.headquarters), ("Size", p.headcount), ("Funding or owner", p.funding), ("Pricing model", p.pricing_model)] %}
+{% if snap | selectattr(1) | list or p.target_customers %}
+<section>
+  <h2>Profile</h2>
+  <dl class="facts measure">
+    {% for label, value in snap %}{% if value %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endif %}{% endfor %}
+    {% if p.target_customers %}<dt>Customers</dt><dd>{{ p.target_customers[:6] | join(", ") }}</dd>{% endif %}
+  </dl>
+</section>
+{% endif %}
+
+{% if hh[0] or hh[1] %}
+<section>
+  <h2>{{ p.name }} compared with {{ target }}</h2>
+  {% if hh[2] %}<p class="verdict">{{ cite.text(hh[2]) }}</p>{% endif %}
+  <div class="cols">
+    <div class="col"><h3>Why buyers pick {{ p.name }}</h3>{{ ui.insights(hh[0]) }}</div>
+    <div class="col"><h3>Why buyers pick {{ target }}</h3>{{ ui.insights(hh[1]) }}</div>
+  </div>
+</section>
+{% endif %}
+
+<section>
+  <h2>Pricing</h2>
+  {% if ps.tiers %}
+  {{ ui.fig(pcharts.tiers, "Price by plan", "US dollars a month.") }}
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Plan</th><th>Price</th>{% for s in SEATS %}<th class="num">{{ s }} seats a year</th>{% endfor %}<th>Includes</th></tr></thead>
+    <tbody>
+    {% for tv in ps.tiers %}
+      <tr><th scope="row">{{ tv.tier.name }}</th><td>{{ ui.price(tv) }}{{ cite(tv.tier.fact_ids, 2) }}</td>
+        {% for s in SEATS %}<td class="num">{{ tv.annual[s] | usd(False) if tv.annual else "" }}</td>{% endfor %}
+        <td class="wide small">{{ tv.tier.highlights[:3] | join("; ") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if bc and bc.pricing_talk_track %}<p class="measure" style="margin-top:16px"><strong>How to discuss price:</strong> {{ cite.text(bc.pricing_talk_track) }}</p>{% endif %}
+  {% else %}<p class="muted">No published pricing was found.</p>{% endif %}
+</section>
+
+{% if p.customer_praise or p.customer_complaints or p.sentiment_summary %}
+<section>
+  <h2>What customers say</h2>
+  {% if p.customer_praise or p.customer_complaints %}
+  <div class="cols">
+    <div class="col"><h3>Praise</h3>{{ ui.insights(p.customer_praise, "None found in reviews.") }}</div>
+    <div class="col"><h3>Complaints</h3>{{ ui.insights(p.customer_complaints, "None found in reviews.") }}</div>
+  </div>
+  {% endif %}
+  {% if p.sentiment_summary %}<p class="note" style="margin-top:12px">{{ p.sentiment_summary }}</p>{% endif %}
+</section>
+{% endif %}
+
+{% if moves_for %}
+<section>
+  <h2>Recent moves</h2>
+  <div class="table-wrap">
+  <table class="t">
+    <tbody>
+    {% for mv in moves_for %}<tr><td class="small" style="width:110px">{{ mv.when }}</td><td>{{ cite.text(mv.text) }}{{ cite(mv.fact_ids, 3) }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% if bc %}
+<section>
+  <h2>How to win against {{ p.name }}</h2>
+  {% if bc.one_liner %}<p class="verdict">{{ cite.text(bc.one_liner) }}</p>{% endif %}
+  <div class="cols">
+    {% if bc.why_we_win %}<div class="col"><h3>Lead with</h3><ul>{% for x in bc.why_we_win %}<li>{{ cite.text(x) }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if bc.landmines %}<div class="col"><h3>Questions to ask the buyer</h3><ul>{% for x in bc.landmines %}<li>{{ cite.text(x) }}</li>{% endfor %}</ul></div>{% endif %}
+  </div>
+  {% if bc.objections %}
+  <div class="table-wrap" style="margin-top:24px">
+  <table class="t">
+    <thead><tr><th>If the buyer says</th><th>Answer</th></tr></thead>
+    <tbody>{% for o in bc.objections %}<tr><td>“{{ cite.text(o.objection) }}”</td><td>{{ cite.text(o.response) }}</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if p.strengths or p.weaknesses %}
+<section>
+  <h2>Strengths and weaknesses</h2>
+  <div class="cols">
+    <div class="col"><h3>Strengths</h3>{{ ui.insights(p.strengths) }}</div>
+    <div class="col"><h3>Weaknesses</h3>{{ ui.insights(p.weaknesses) }}</div>
+  </div>
+</section>
+{% endif %}
+
+{% if related_risks %}
+<section>
+  <h2>Risks involving {{ p.name }}</h2>
+  <ol class="rows">{% for r in related_risks %}{{ ui.risk_row(r, loop.index) }}{% endfor %}</ol>
+</section>
+{% endif %}
+
+{% if pcharts.evidence %}
+<section>
+  <h2>Evidence behind this profile</h2>
+  {{ ui.fig(pcharts.evidence, "Verified facts by topic", "Topics with few facts deserve a second look before you rely on them.") }}
+</section>
+{% endif %}
+{% endblock %}

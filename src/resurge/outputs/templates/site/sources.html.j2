@@ -1,0 +1,45 @@
+{% extends "base.html.j2" %}
+{% block title %}Evidence{% endblock %}
+{% block heading %}Evidence{% endblock %}
+{% block lede %}<p class="lede">Every verified fact behind this report, with the exact words from its source. A second AI model from a different vendor checked each one, and each quote was matched against its page.</p>{% endblock %}
+{% block content %}
+{% set by_comp = facts.values() | groupby("competitor") %}
+<p class="toc">{% for comp, _ in by_comp %}<a href="#c-{{ comp | slug }}">{{ comp }}</a>{% if not loop.last %}, {% endif %}{% endfor %}; <a href="#sources">all sources</a></p>
+{% for comp, items in by_comp %}
+<section id="c-{{ comp | slug }}">
+  <h2>{{ comp }} <span class="muted small" style="font-family: var(--sans); font-weight: 400">{{ items | length }} facts</span></h2>
+  {% for dim, fs in items | groupby("dimension") %}
+  <h3 class="h-dim">{{ dim | dim }}</h3>
+  <ul class="rows">
+    {% for f in fs | sort(attribute="confidence", reverse=True) %}
+    {% set url = safe_url(f.source_urls[0]) if f.source_urls else None %}
+    <li id="f-{{ f.id | lower }}" class="fact">
+      <div class="fact-claim">{{ f.claim }}</div>
+      {% if f.quote %}<blockquote>“{{ f.quote }}”</blockquote>{% endif %}
+      <div class="fact-meta">
+        {% if url %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer">{{ url | domain }}</a>{% endif %}{% if f.as_of %}, {{ f.as_of }}{% endif %};
+        confidence {{ f.confidence | pct }}{% if f.status == "partial" %}; partly supported{% endif %}{% if f.corroborations %}; confirmed by {{ f.corroborations }} other source{{ "s" if f.corroborations > 1 }}{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+</section>
+{% endfor %}
+
+<section id="sources">
+  <h2>All sources</h2>
+  {{ ui.fig(charts.source_mix, "Where the verified facts come from", "Facts by type of source.") }}
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Source</th><th>Type</th><th class="num">Facts</th><th class="num">Reliability</th></tr></thead>
+    <tbody>
+    {% for s in report.sources | sort(attribute="fact_count", reverse=True) %}
+      <tr><td class="wide">{{ ui.ext(s.url, (s.title or (s.url | domain)) | clip(80)) }}<br><span class="small muted">{{ s.domain }}</span></td>
+        <td>{{ s.source_type | replace("_", " ") | capitalize }}</td><td class="num">{{ s.fact_count }}</td><td class="num">{{ s.reliability | pct }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

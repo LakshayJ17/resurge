@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Resurge">
+<meta name="color-scheme" content="light dark">
+<title>{{ title }}</title>
+<style>
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f1f5f9; --border: #e2e8f0;
+  --text: #0f172a; --text-2: #334155; --muted: #64748b;
+  --navy: #1f2a44; --accent: #0f766e; --accent-soft: #ccfbf1; --link: #1d4ed8; --mark: #fef9c3;
+  --ok-bg: #dcfce7; --ok-ink: #166534; --warn-bg: #fef3c7; --warn-ink: #92400e;
+  --bad-bg: #fee2e2; --bad-ink: #991b1b; --na-bg: #f1f5f9; --na-ink: #475569;
+  --high-bg: #fed7aa; --high-ink: #9a3412;
+  --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 16px rgba(15, 23, 42, .05);
+  --radius: 14px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1120; --surface: #111a2e; --surface-2: #1a2540; --border: #2a3654;
+    --text: #e5e9f0; --text-2: #cbd5e1; --muted: #94a3b8;
+    --navy: #0d1528; --accent: #2dd4bf; --accent-soft: #134e4a; --link: #93c5fd; --mark: #3f3a12;
+    --ok-bg: rgba(34, 197, 94, .16); --ok-ink: #86efac; --warn-bg: rgba(245, 158, 11, .16); --warn-ink: #fcd34d;
+    --bad-bg: rgba(239, 68, 68, .18); --bad-ink: #fca5a5; --na-bg: rgba(148, 163, 184, .14); --na-ink: #cbd5e1;
+    --high-bg: rgba(249, 115, 22, .18); --high-ink: #fdba74;
+    --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--link); text-underline-offset: 2px; }
+h1, h2, h3, h4 { line-height: 1.25; margin: 0 0 .5em; }
+h2 { font-size: 1.6rem; letter-spacing: -.01em; }
+h3 { font-size: 1.1rem; margin-top: 1.4em; }
+p { margin: 0 0 1em; }
+ul { padding-left: 1.2em; margin: 0 0 1em; }
+li { margin: .25em 0; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+.nowrap { white-space: nowrap; }
+.hero { background: linear-gradient(135deg, #1f2a44 0%, #111827 100%); color: #fff; padding: 48px 24px 40px; }
+.hero-inner { max-width: 1280px; margin: 0 auto; border-left: 5px solid #14b8a6; padding-left: 24px; }
+.kicker { color: #5eead4; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; font-weight: 700; margin: 0 0 .5em; }
+.hero h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); letter-spacing: -.02em; margin-bottom: .3em; }
+.hero .headline { font-size: 1.15rem; color: #e2e8f0; max-width: 60em; }
+.meta { color: #94a3b8; font-size: .9rem; margin-bottom: 1.4em; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; max-width: 760px; }
+.kpi { background: rgba(255, 255, 255, .07); border-radius: 12px; padding: 12px 16px; }
+.kpi b { display: block; font-size: 1.5rem; color: #fff; }
+.kpi span { color: #cbd5e1; font-size: .85rem; }
+.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; max-width: 1280px; margin: 0 auto; padding: 32px 24px 64px; }
+.toc { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow: auto; font-size: .9rem; }
+.toc p { font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: .75rem; margin-bottom: .6em; }
+.toc ol { list-style: none; padding: 0; margin: 0; }
+.toc a { display: block; padding: 6px 10px; border-radius: 8px; color: var(--text-2); text-decoration: none; }
+.toc a:hover, .toc a:focus-visible { background: var(--surface-2); color: var(--text); }
+main { min-width: 0; }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px; margin-bottom: 24px; }
+.section-kicker { color: var(--accent); font-weight: 700; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; margin-bottom: .3em; }
+.headline { font-size: 1.25rem; font-weight: 650; }
+.lede { color: var(--text-2); }
+.grid { display: grid; gap: 16px; }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid.four { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.grid.quad { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+section h4 { margin-top: 1.2em; }
+.card h4 { margin-top: 0; }
+.card { background: var(--surface-2); border-radius: 12px; padding: 16px 18px; border-left: 4px solid var(--accent); min-width: 0; }
+.card h3, .card h4 { margin-top: 0; }
+.card ul:last-child, .card p:last-child { margin-bottom: 0; }
+.accent-red { border-left-color: #ef4444; } .accent-green { border-left-color: #22c55e; }
+.accent-amber { border-left-color: #f59e0b; } .accent-teal { border-left-color: #14b8a6; } .accent-navy { border-left-color: #64748b; }
+.table-wrap { overflow-x: auto; margin: 0 0 1em; border: 1px solid var(--border); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+thead th { background: var(--navy); color: #fff; font-weight: 600; position: sticky; top: 0; }
+tbody tr:last-child > * { border-bottom: 0; }
+tbody th { font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; background: var(--c, #94a3b8); margin-right: .45em; vertical-align: .02em; }
+.chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: .78rem; font-weight: 650; white-space: nowrap; }
+.st-supported, .fm-yes, .band-Low, .verdict-pass, .prio-low { background: var(--ok-bg); color: var(--ok-ink); }
+.st-partial, .fm-partial, .band-Medium, .verdict-revise, .prio-medium { background: var(--warn-bg); color: var(--warn-ink); }
+.st-unsupported, .st-contradicted, .st-rejected, .fm-no, .band-Critical, .verdict-fail, .prio-high { background: var(--bad-bg); color: var(--bad-ink); }
+.band-High { background: var(--high-bg); color: var(--high-ink); }
+.st-pending, .fm-unknown { background: var(--na-bg); color: var(--na-ink); }
+.threat { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 650; font-size: .85rem; white-space: nowrap; }
+.t1, .t2 { background: var(--ok-bg); color: var(--ok-ink); } .t3 { background: var(--warn-bg); color: var(--warn-ink); }
+.t4 { background: var(--high-bg); color: var(--high-ink); } .t5 { background: var(--bad-bg); color: var(--bad-ink); }
+.conf { display: inline-block; font-size: .72rem; font-weight: 700; padding: 0 7px; border-radius: 6px; vertical-align: .1em; margin-left: .3em; white-space: nowrap; }
+.conf-high { background: var(--ok-bg); color: var(--ok-ink); } .conf-mid { background: var(--warn-bg); color: var(--warn-ink); }
+.conf-low { background: var(--bad-bg); color: var(--bad-ink); } .conf-na { background: var(--na-bg); color: var(--na-ink); }
+.cites { font-size: .68rem; line-height: 0; margin-left: .2em; white-space: nowrap; }
+.cite { text-decoration: none; padding: 0 2px; border-radius: 3px; background: var(--surface-2); color: var(--link); }
+.cite:hover { text-decoration: underline; }
+.cite.missing { color: var(--muted); }
+.insights { list-style: none; padding: 0; }
+.insights li { padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; margin: 8px 0; }
+.insights li.is-inferred { border-left-style: dashed; border-left-color: var(--muted); background: transparent; outline: 1px dashed var(--border); outline-offset: -1px; }
+.tag { display: inline-block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 0 6px; border-radius: 4px; margin-right: .4em; }
+.tag-inferred { background: var(--na-bg); color: var(--na-ink); font-style: italic; }
+figure.chart { margin: 8px 0 20px; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+figure.chart img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+figure.chart figcaption { color: #64748b; font-size: .85rem; margin-top: 6px; }
+.matrix td { text-align: center; font-weight: 600; font-size: .88rem; }
+.fm-note { display: block; font-weight: 400; font-size: .75rem; opacity: .85; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: .85rem; }
+details.profile { border: 1px solid var(--border); border-radius: 12px; margin: 0 0 12px; background: var(--surface); }
+details.profile > summary { cursor: pointer; padding: 14px 18px; font-weight: 650; list-style: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+details.profile > summary::-webkit-details-marker { display: none; }
+details.profile > summary::after { content: "▸"; margin-left: auto; color: var(--muted); transition: transform .15s; }
+details.profile[open] > summary::after { transform: rotate(90deg); }
+details.profile > .body { padding: 0 18px 18px; }
+dl.facts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 16px; margin: 0 0 1em; }
+dl.facts-grid div { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; }
+dl.facts-grid dt { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+dl.facts-grid dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.meter { display: inline-flex; gap: 3px; vertical-align: middle; margin-right: 8px; }
+.meter i { width: 18px; height: 10px; border-radius: 3px; background: var(--border); }
+.meter i.on { background: var(--accent); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.2em; }
+.tile { background: var(--surface-2); border-radius: 12px; padding: 14px 16px; border-left: 4px solid #14b8a6; }
+.tile b { display: block; font-size: 1.45rem; color: var(--text); }
+.tile span { display: block; font-size: .85rem; color: var(--text-2); }
+.tile small { color: var(--muted); font-size: .75rem; }
+.org { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.dept { background: var(--surface-2); border-radius: 12px; overflow: hidden; }
+.dept h4 { background: var(--navy); color: #fff; margin: 0; padding: 10px 14px; font-size: .95rem; }
+.agent { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.agent:last-child { border-bottom: 0; }
+.agent p { margin: .2em 0; font-size: .85rem; color: var(--text-2); }
+.model { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0 6px; margin: 2px 4px 0 0; overflow-wrap: anywhere; }
+blockquote { margin: .4em 0; padding: .2em .8em; border-left: 3px solid var(--border); color: var(--text-2); font-style: italic; }
+.fact-row:target { background: var(--mark); }
+.fact-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; white-space: nowrap; }
+.filter { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.filter input { flex: 1; max-width: 420px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+.src-links { min-width: 190px; }
+.src-links a { display: inline-block; margin-right: 8px; overflow-wrap: break-word; }
+footer.page { text-align: center; color: var(--muted); font-size: .85rem; padding: 0 24px 40px; }
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+  .toc { position: sticky; top: 0; z-index: 5; max-height: none; background: var(--bg); padding: 8px 0; overflow-x: auto; }
+  .toc p { display: none; }
+  .toc ol { display: flex; gap: 4px; white-space: nowrap; }
+  section { padding: 20px 16px; }
+  .hero { padding: 32px 16px; }
+  .hero-inner { padding-left: 16px; }
+}
+@media (max-width: 640px) {
+  .grid.quad { grid-template-columns: 1fr; }
+}
+@media print {
+  :root { --bg: #fff; --surface: #fff; --shadow: none; }
+  body { font-size: 11pt; background: #fff; }
+  .toc, .filter { display: none !important; }
+  .layout { display: block; padding: 0; max-width: none; }
+  .hero { background: #1f2a44 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  section { box-shadow: none; border: 0; padding: 12px 0; break-inside: auto; }
+  h2, h3, figure, .card, tr, .tile, .dept { break-inside: avoid; }
+  thead th { position: static; }
+  .table-wrap { overflow: visible; border: 0; }
+  details.profile > summary::after { content: ""; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+{% macro cite(ids) -%}
+{% set ids = ids | list %}
+{% if ids %}<sup class="cites">{% for fid in ids %}{% if fid in facts %}<a class="cite" href="#{{ fid | anchor }}" title="{{ facts[fid].claim | clip(160) }}">{{ fid }}</a>{% else %}<span class="cite missing" title="Not in the fact base">{{ fid }}</span>{% endif %}{% if not loop.last %} {% endif %}{% endfor %}</sup>{% endif %}
+{%- endmacro %}
+{% macro ext_link(url, label, cls="", title="") -%}
+{% set href = url | url %}
+{% if href %}<a{% if cls %} class="{{ cls }}"{% endif %} href="{{ href }}" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer" target="_blank"{% if title %} title="{{ title }}"{% endif %}>{{ label }}</a>{% else %}{{ label }}{% endif %}
+{%- endmacro %}
+{% macro conf_badge(value) -%}
+{% if value is not none %}<span class="conf {{ value | conf_class }}" title="Confidence">{{ value | pct }}</span>{% endif %}
+{%- endmacro %}
+{% macro insight_list(items, empty="Nothing reported.") -%}
+{% if items %}
+<ul class="insights">
+{% for i in items %}
+<li class="{{ 'is-inferred' if i.inferred else 'is-backed' }}">{% if i.inferred %}<span class="tag tag-inferred" title="Analyst judgement, not a direct fact">Inferred</span>{% endif %}{{ i.text }}{{ conf_badge(confidence(i)) }}{{ cite(i.fact_ids) }}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="muted">{{ empty }}</p>
+{% endif %}
+{%- endmacro %}
+{% macro plain_list(items, empty="Nothing reported.") -%}
+{% if items %}<ul>{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>{% else %}<p class="muted">{{ empty }}</p>{% endif %}
+{%- endmacro %}
+{% macro chart(name, caption="") -%}
+{% if name in charts %}<figure class="chart" id="chart-{{ name }}"><img src="{{ charts[name] }}" alt="{{ chart_titles[name] }}" loading="lazy" decoding="async">{% if caption %}<figcaption>{{ caption }}</figcaption>{% endif %}</figure>{% endif %}
+{%- endmacro %}
+<body>
+<header class="hero">
+  <div class="hero-inner">
+    <p class="kicker">Competitive intelligence report</p>
+    <h1>{{ title }}</h1>
+    {% if es.headline %}<p class="headline">{{ es.headline }}</p>{% endif %}
+    <p class="meta">Prepared for the {{ r.brief.audience }} · {{ date }}{% if r.brief.industry %} · {{ r.brief.industry }}{% endif %} · {{ r.brief.region }} · Run <code>{{ r.run_id }}</code></p>
+    <div class="kpis">
+      {% for m in hero_metrics %}<div class="kpi"><b>{{ m.display }}</b><span>{{ m.label }}</span></div>{% endfor %}
+    </div>
+  </div>
+</header>
+<div class="layout">
+<nav class="toc" aria-label="Table of contents">
+  <p>Contents</p>
+  <ol>{% for key, label in toc %}<li><a href="#{{ key }}">{{ label }}</a></li>{% endfor %}</ol>
+</nav>
+<main>
+
+<section id="summary">
+  <p class="section-kicker">Summary</p>
+  <h2>Executive summary</h2>
+  {% if es.summary %}<p class="lede">{{ es.summary }}</p>{% endif %}
+  {% if es.key_findings %}<h3>Key findings</h3>{{ insight_list(es.key_findings) }}{% endif %}
+  {% if es.top_threats or es.top_opportunities %}
+  <div class="grid two">
+    {% if es.top_threats %}<div class="card accent-red"><h3>Top threats</h3>{{ plain_list(es.top_threats) }}</div>{% endif %}
+    {% if es.top_opportunities %}<div class="card accent-green"><h3>Top opportunities</h3>{{ plain_list(es.top_opportunities) }}</div>{% endif %}
+  </div>
+  {% endif %}
+  {% if not (es.headline or es.summary or es.key_findings or es.top_threats or es.top_opportunities) %}<p class="muted">No executive summary was produced for this run.</p>{% endif %}
+</section>
+
+{% if show.landscape %}
+<section id="landscape">
+  <p class="section-kicker">Market map</p>
+  <h2>Competitive landscape</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Competitor</th><th>Category</th><th>What they are</th><th>Threat</th></tr></thead>
+    <tbody>
+    {% for c in landscape %}
+      <tr>
+        <td><span class="dot" style="--c: {{ c.color }}"></span>{% if c.has_profile %}<a href="#{{ c.anchor }}"><strong>{{ c.name }}</strong></a>{% else %}<strong>{{ c.name }}</strong>{% endif %}{% if c.website %}<br>{{ ext_link(c.website, c.website | domain, cls="small") }}{% endif %}</td>
+        <td>{{ c.category or "—" }}</td>
+        <td>{{ c.summary or "—" }}</td>
+        <td>{% if c.threat %}<span class="threat t{{ c.threat }}">{{ c.threat }}/5 · {{ c.threat | threat_label }}</span>{% else %}<span class="muted">Unrated</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ chart("threat_levels") }}
+</section>
+{% endif %}
+
+{% if show.features %}
+<section id="features">
+  <p class="section-kicker">Product</p>
+  <h2>Feature comparison</h2>
+  <div class="table-wrap"><table class="matrix">
+    <thead><tr><th>Feature</th>{% for c in matrix.companies %}<th><span class="dot" style="--c: {{ color(c) }}"></span>{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in matrix.rows %}
+      <tr><th scope="row">{{ row.feature }}</th>{% for cell in row.cells %}<td class="fm-{{ cell.status }}"><span aria-hidden="true">{{ cell.glyph }}</span> {{ cell.label }}{{ cite(cell.fact_ids) }}{% if cell.note %}<span class="fm-note">{{ cell.note }}</span>{% endif %}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="legend">{% for key, s in cell_status.items() %}<span class="chip fm-{{ key }}">{{ s.glyph }} {{ s.label }}</span>{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if show.pricing %}
+<section id="pricing">
+  <p class="section-kicker">Pricing & packaging</p>
+  <h2>Pricing</h2>
+  {{ chart("pricing") }}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Competitor</th><th>Tier</th><th>Price</th><th>Billing</th><th>Highlights</th></tr></thead>
+    <tbody>
+    {% for item in profiles if item.p.pricing %}
+      {% for t in item.p.pricing %}
+      <tr>
+        {% if loop.first %}<td rowspan="{{ item.p.pricing | length }}"><span class="dot" style="--c: {{ item.color }}"></span><strong>{{ item.p.name }}</strong>{% if item.p.pricing_model %}<br><span class="small muted">{{ item.p.pricing_model }}</span>{% endif %}</td>{% endif %}
+        <td>{{ t.name }}</td>
+        <td>{{ t.price or "—" }}{% if t.price_monthly_usd is not none and (t.price_monthly_usd | usd) not in (t.price or "") %} <span class="small muted nowrap">(≈ {{ t.price_monthly_usd | usd }}/mo)</span>{% endif %}</td>
+        <td>{{ t.billing or "" }}</td>
+        <td>{{ t.highlights | join("; ") }}{{ cite(t.fact_ids) }}</td>
+      </tr>
+      {% endfor %}
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% if show.positioning %}
+<section id="positioning">
+  <p class="section-kicker">Positioning</p>
+  <h2>Competitive positioning</h2>
+  {{ chart("positioning") }}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Company</th><th class="num">{{ r.positioning.x_axis }}</th><th class="num">{{ r.positioning.y_axis }}</th><th>Rationale</th></tr></thead>
+    <tbody>
+    {% for p in r.positioning.points %}
+      <tr><td><span class="dot" style="--c: {{ color(p.competitor) }}"></span>{% if p.is_target %}<strong>{{ p.competitor }}</strong> <span class="tag tag-inferred">target</span>{% else %}{{ p.competitor }}{% endif %}</td><td class="num">{{ "%.1f" | format(p.x) }}</td><td class="num">{{ "%.1f" | format(p.y) }}</td><td>{{ p.rationale }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% if show.profiles %}
+<section id="profiles">
+  <p class="section-kicker">Deep dives</p>
+  <h2>Competitor profiles</h2>
+  {% for item in profiles %}
+  {% set p = item.p %}
+  <details class="profile" id="{{ item.anchor }}"{% if loop.first %} open{% endif %}>
+    <summary><span class="dot" style="--c: {{ item.color }}"></span>{{ p.name }}{% if p.category %} <span class="chip st-pending">{{ p.category }}</span>{% endif %}{% if p.threat_level is not none %} <span class="threat t{{ [[p.threat_level, 1] | max, 5] | min }}">Threat {{ [[p.threat_level, 1] | max, 5] | min }}/5</span>{% endif %}</summary>
+    <div class="body">
+      {% if p.summary %}<p class="lede">{{ p.summary }}</p>{% endif %}
+      {% if p.threat_rationale %}<p class="small muted"><strong>Why threat {{ [[p.threat_level or 1, 1] | max, 5] | min }}/5:</strong> {{ p.threat_rationale }}</p>{% endif %}
+      <dl class="facts-grid">
+        {% if p.website and (p.website | url) %}<div><dt>Website</dt><dd>{{ ext_link(p.website, p.website | domain) }}</dd></div>{% endif %}
+        {% if p.founded %}<div><dt>Founded</dt><dd>{{ p.founded }}</dd></div>{% endif %}
+        {% if p.headquarters %}<div><dt>Headquarters</dt><dd>{{ p.headquarters }}</dd></div>{% endif %}
+        {% if p.headcount %}<div><dt>Headcount</dt><dd>{{ p.headcount }}</dd></div>{% endif %}
+        {% if p.funding %}<div><dt>Funding</dt><dd>{{ p.funding }}</dd></div>{% endif %}
+        {% if p.pricing_model %}<div><dt>Pricing model</dt><dd>{{ p.pricing_model }}</dd></div>{% endif %}
+        {% if p.sentiment_score is not none %}<div><dt>Sentiment</dt><dd>{{ "%+.2f" | format(p.sentiment_score) }}{% if p.sentiment_summary %} <span class="small muted">· {{ p.sentiment_summary }}</span>{% endif %}</dd></div>{% endif %}
+      </dl>
+      <div class="grid four">
+        <div class="card accent-teal"><h4>Target customers</h4>{{ plain_list(p.target_customers) }}</div>
+        <div class="card accent-navy"><h4>Products</h4>{{ plain_list(p.products) }}</div>
+        <div class="card accent-teal"><h4>Key features</h4>{{ plain_list(p.key_features) }}</div>
+      </div>
+      <div class="grid two">
+        <div><h3>Strengths</h3>{{ insight_list(p.strengths) }}</div>
+        <div><h3>Weaknesses</h3>{{ insight_list(p.weaknesses) }}</div>
+      </div>
+      {% if p.recent_moves %}<h3>Recent moves</h3>{{ insight_list(p.recent_moves) }}{% endif %}
+      {% if p.fact_ids %}<p class="small muted">Evidence: {{ cite(p.fact_ids) }}</p>{% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if show.swot %}
+<section id="swot">
+  <p class="section-kicker">SWOT analysis</p>
+  <h2>SWOT analysis</h2>
+  {% for s in r.swots %}
+  <h3>{{ s.subject }}</h3>
+  <div class="grid quad">
+    <div class="card accent-green"><h4>Strengths</h4>{{ insight_list(s.strengths) }}</div>
+    <div class="card accent-red"><h4>Weaknesses</h4>{{ insight_list(s.weaknesses) }}</div>
+    <div class="card accent-teal"><h4>Opportunities</h4>{{ insight_list(s.opportunities) }}</div>
+    <div class="card accent-amber"><h4>Threats</h4>{{ insight_list(s.threats) }}</div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if show.market %}
+<section id="market">
+  <p class="section-kicker">Market</p>
+  <h2>Market dynamics</h2>
+  {% if r.market.summary %}<p class="lede">{{ r.market.summary }}</p>{% endif %}
+  {% if r.market.trends %}<h3>Key trends</h3>{{ insight_list(r.market.trends) }}{% endif %}
+  {% if r.market.five_forces %}
+  <h3>Five forces</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Force</th><th>Strength</th><th>Rationale</th></tr></thead>
+    <tbody>
+    {% for f in r.market.five_forces %}
+      {% set rating = [[f.rating, 1] | max, 5] | min %}
+      <tr><td><strong>{{ f.force }}</strong></td><td class="nowrap"><span class="meter" aria-hidden="true">{% for k in range(5) %}<i class="{{ 'on' if k < rating else '' }}"></i>{% endfor %}</span>{{ rating }}/5</td><td>{{ f.rationale }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if show.recommendations %}
+<section id="recommendations">
+  <p class="section-kicker">Strategy</p>
+  <h2>White space & recommendations</h2>
+  {% if r.market.white_space %}<h3>White space</h3>{{ insight_list(r.market.white_space) }}{% endif %}
+  {% if recommendations %}
+  <h3>Recommendations</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Recommendation</th><th>Priority</th><th class="num">Impact</th><th class="num">Effort</th></tr></thead>
+    <tbody>
+    {% for rec in recommendations %}
+      <tr><td>{{ loop.index }}</td><td><strong>{{ rec.title }}</strong>{{ cite(rec.fact_ids) }}{% if rec.rationale %}<br><span class="small muted">{{ rec.rationale }}</span>{% endif %}</td><td><span class="chip prio-{{ rec.priority }}">{{ rec.priority | title }}</span></td><td class="num">{{ [[rec.impact, 1] | max, 5] | min }}/5</td><td class="num">{{ [[rec.effort, 1] | max, 5] | min }}/5</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if show.risks %}
+<section id="risks">
+  <p class="section-kicker">Risk</p>
+  <h2>Risk register</h2>
+  {{ chart("risk_heatmap") }}
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>Risk</th><th>Category</th><th class="num nowrap">L × I</th><th>Score</th><th>Mitigation</th><th>Owner</th></tr></thead>
+    <tbody>
+    {% for item in risks %}
+      <tr><td class="nowrap"><strong>{{ item.label }}</strong>{% if item.label != item.r.id %}<br><span class="small muted">{{ item.r.id }}</span>{% endif %}</td><td><strong>{{ item.r.title }}</strong>{{ cite(item.r.fact_ids) }}{% if item.r.description %}<br><span class="small muted">{{ item.r.description }}</span>{% endif %}</td><td>{{ item.category }}</td><td class="num nowrap">{{ item.likelihood }} × {{ item.impact }}</td><td><span class="chip band-{{ item.band }}">{{ item.score }} · {{ item.band }}</span></td><td>{{ item.r.mitigation }}</td><td>{{ item.r.owner }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% if show.battlecards %}
+<section id="battlecards">
+  <p class="section-kicker">Sales enablement</p>
+  <h2>Battlecards</h2>
+  {% for b in r.battlecards %}
+  <h3><span class="dot" style="--c: {{ color(b.competitor) }}"></span>{{ b.competitor }}</h3>
+  {% if b.one_liner %}<p class="lede"><em>{{ b.one_liner }}</em></p>{% endif %}
+  <div class="grid quad">
+    <div class="card accent-green"><h4>Why we win</h4>{{ plain_list(b.why_we_win) }}</div>
+    <div class="card accent-red"><h4>Their strengths</h4>{{ plain_list(b.their_strengths) }}</div>
+    <div class="card accent-teal"><h4>Their weaknesses</h4>{{ plain_list(b.their_weaknesses) }}</div>
+    <div class="card accent-amber"><h4>Landmine questions</h4>{{ plain_list(b.landmines) }}</div>
+  </div>
+  {% if b.objections %}
+  <h4>Objection handling</h4>
+  <div class="table-wrap"><table>
+    <thead><tr><th>They say</th><th>We say</th></tr></thead>
+    <tbody>{% for o in b.objections %}<tr><td>“{{ o.objection }}”</td><td>{{ o.response }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  {% if b.pricing_talk_track %}<div class="card accent-navy"><h4>Pricing talk track</h4><p>{{ b.pricing_talk_track }}</p></div>{% endif %}
+  {% if b.fact_ids %}<p class="small muted">Evidence: {{ cite(b.fact_ids) }}</p>{% endif %}
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if show.changes %}
+<section id="changes">
+  <p class="section-kicker">Watch mode</p>
+  <h2>Changes since last run</h2>
+  {{ plain_list(r.changes_since_last_run) }}
+</section>
+{% endif %}
+
+<section id="quality">
+  <p class="section-kicker">How this report was made</p>
+  <h2>Methodology & quality</h2>
+  <div class="tiles">
+    {% for m in quality_metrics %}<div class="tile"><b>{{ m.display }}</b><span>{{ m.label }}</span>{% if m.note %}<small>{{ m.note }}</small>{% endif %}</div>{% endfor %}
+  </div>
+  {% if r.methodology %}<p>{{ r.methodology }}</p>{% endif %}
+  {{ chart("verification_funnel") }}
+  {{ chart("coverage") }}
+  {% if r.reviews %}
+  <h3>QA stage reviews</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Stage</th><th>Reviewer</th><th class="num">Score</th><th>Verdict</th><th>Issues & suggestions</th></tr></thead>
+    <tbody>
+    {% for rv in r.reviews %}
+      <tr><td>{{ rv.stage | title }} <span class="small muted">#{{ rv.attempt }}</span></td><td class="small">{{ rv.reviewer }}</td><td class="num">{{ "%.1f" | format(rv.score) }}</td><td><span class="chip verdict-{{ rv.verdict }}">{{ rv.verdict | title }}</span></td><td class="small">{% for i in rv.issues %}<div>• {{ i }}</div>{% endfor %}{% for s in rv.suggestions %}<div class="muted">→ {{ s }}</div>{% endfor %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+  {% if model_usage %}
+  <h3>Model usage</h3>
+  {{ chart("model_usage") }}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Model</th><th class="num">Calls</th><th class="num">Failures</th><th class="num">Cache hits</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th>Roles</th></tr></thead>
+    <tbody>
+    {% for u in model_usage %}
+      <tr><td><span class="model">{{ u.model_id }}</span></td><td class="num">{{ u.calls | num }}</td><td class="num">{{ u.failures | num }}</td><td class="num">{{ u.cache_hits | num }}</td><td class="num">{{ u.tokens_in | num }}</td><td class="num">{{ u.tokens_out | num }}</td><td class="small">{{ u.roles | join(", ") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+  {% if departments %}
+  <h3>Research organisation</h3>
+  <div class="org">
+    {% for dept, agents in departments.items() %}
+    <div class="dept"><h4>{{ dept }}</h4>
+      {% for a in agents %}<div class="agent"><strong>{{ a.title or a.key }}</strong><p>{{ a.mission }}</p>{% for m in a.models_used %}<span class="model">{{ m }}</span>{% endfor %}</div>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if r.lessons_applied %}
+  <h3>Lessons applied from earlier runs</h3>
+  <ul>{% for l in r.lessons_applied %}<li>{{ l.text }} <span class="small muted">({{ l.role }} · {{ l.helpful }} helpful / {{ l.harmful }} harmful)</span></li>{% endfor %}</ul>
+  {% endif %}
+</section>
+
+{% if show.sources %}
+<section id="sources">
+  <p class="section-kicker">Appendix</p>
+  <h2>Sources</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Source</th><th>Type</th><th>Published</th><th class="num">Reliability</th><th class="num">Facts</th></tr></thead>
+    <tbody>
+    {% for item in sources %}
+      <tr><td>{{ ext_link(item.url, item.s.title or item.s.domain or item.s.url) }}<br><span class="small muted">{{ item.s.domain }}</span></td><td>{{ item.s.source_type | title }}</td><td>{{ item.s.published or "—" }}</td><td class="num">{{ item.s.reliability | pct }}</td><td class="num">{{ item.s.fact_count }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<section id="facts">
+  <p class="section-kicker">Appendix</p>
+  <h2>Facts appendix</h2>
+  <p class="muted small">Every claim in this report traces back to one of these facts. Each carries a verbatim quote, its sources, a verification status and a confidence score.</p>
+  {% if fact_rows %}
+  <div class="filter"><label for="fact-filter" class="small muted">Filter</label><input id="fact-filter" type="search" placeholder="Type to filter by competitor, claim, status…" autocomplete="off"></div>
+  <div class="table-wrap"><table id="fact-table">
+    <thead><tr><th>ID</th><th>Claim</th><th>Status</th><th>Sources</th></tr></thead>
+    <tbody>
+    {% for row in fact_rows %}
+      {% set f = row.f %}
+      <tr class="fact-row" id="{{ row.anchor }}">
+        <td><span class="fact-id">{{ f.id }}</span><br><span class="small muted">{{ f.competitor }} · {{ row.dimension }}</span></td>
+        <td>{{ f.claim }}{% if f.value %} <span class="small muted">({{ f.value }})</span>{% endif %}{% if f.quote %}<blockquote>“{{ f.quote }}”</blockquote>{% endif %}{% if f.verification_notes %}<div class="small muted">{{ f.verification_notes }}</div>{% endif %}</td>
+        <td class="nowrap"><span class="chip st-{{ f.status }}">{{ row.status.glyph }} {{ row.status.label }}</span><br><span class="conf {{ f.confidence | conf_class }}" title="Confidence">{{ f.confidence | pct }}</span>{% if f.grounded %} <span class="small muted" title="Quote found verbatim in the source">grounded</span>{% endif %}{% if f.corroborations %}<br><span class="small muted">{{ f.corroborations }} corroborating domain{{ "s" if f.corroborations != 1 else "" }}</span>{% endif %}</td>
+        <td class="src-links small">{% for url, label in row.links %}{{ ext_link(url, label, title=url) }}{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <p class="muted">No facts were recorded for this run.</p>
+  {% endif %}
+</section>
+
+</main>
+</div>
+<footer class="page">{{ title }} · {{ generated }} · Generated by Resurge · AI-researched, multi-model verified</footer>
+<script>{{ inline_script }}</script>
+</body>
+</html>

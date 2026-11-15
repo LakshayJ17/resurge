@@ -1,0 +1,62 @@
+# Free scheduled competitor monitoring on GitHub-hosted runners.
+# - Add your free API keys as repository secrets (GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, ...).
+# - Set repository variables RESURGE_TARGET and RESURGE_COMPETITORS (or use the manual "Run workflow" form).
+# - data/resurge.db is cached between runs, so the knowledge base, model/source reputations and
+#   playbook lessons keep improving week after week (the self-improvement loop needs memory).
+name: resurge-watch
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"   # every Monday 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target company / product / market"
+        required: false
+      competitors:
+        description: "Comma-separated competitors (blank = auto-discover)"
+        required: false
+      depth:
+        description: "quick | standard | deep"
+        required: false
+        default: "quick"
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TARGET: ${{ github.event.inputs.target || vars.RESURGE_TARGET }}
+      COMPETITORS: ${{ github.event.inputs.competitors || vars.RESURGE_COMPETITORS }}
+      DEPTH: ${{ github.event.inputs.depth || 'quick' }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Restore company memory
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: resurge-data-${{ github.run_id }}
+          restore-keys: resurge-data-
+      - name: Install
+        run: pip install -e .
+      - name: Check providers
+        run: resurge doctor
+      - name: Run engagement and diff against last week
+        run: resurge watch "$TARGET" --competitors "$COMPETITORS" --depth "$DEPTH" --notify
+      - name: Upload deliverables
+        uses: actions/upload-artifact@v4
+        with:
+          name: resurge-reports
+          path: reports/
+          retention-days: 30

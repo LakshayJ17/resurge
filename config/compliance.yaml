@@ -1,0 +1,76 @@
+# Resurge - web-research compliance & politeness policy.
+#
+# Resurge stays unblocked by being a good citizen, never by circumvention:
+# no proxy/IP rotation, no CAPTCHA solving, no browser impersonation, no
+# login/paywall bypass, and no third-party fetch to get around a refusal.
+#
+# The bundled list in src/resurge/tools/compliance.py (DEFAULT_NOFETCH_DOMAINS)
+# always applies; this file can only ADD domains or record EXCEPTIONS you hold
+# a licence / written permission for. RESURGE_EXTRA_NOFETCH_DOMAINS (comma-
+# separated) extends the list per run. `name.*` means every TLD of that brand.
+
+# Sites whose terms of service forbid automated collection. Their pages are never
+# fetched (directly or via Jina/Parallel); search-engine snippets may still be used.
+nofetch_domains:
+  # social & professional networks
+  - linkedin.com
+  - facebook.com
+  - instagram.com
+  - x.com
+  - twitter.com
+  - tiktok.com
+  - threads.net
+  - youtube.com
+  - pinterest.com
+  # jobs & employer reviews
+  - glassdoor.*
+  - indeed.*
+  # software review marketplaces & analysts
+  - g2.com
+  - capterra.*
+  - getapp.*
+  - softwareadvice.*
+  - gartner.com
+  - trustradius.com
+  - trustpilot.*
+  - yelp.*
+  # company-data vendors
+  - crunchbase.com
+  - pitchbook.com
+  - zoominfo.com
+  - similarweb.com
+  - apollo.io
+  - owler.com
+  - cbinsights.com
+  # forums / publishing platforms (Medium's terms forbid scraping; member-only stories are paywalled)
+  - reddit.com
+  - quora.com
+  - medium.com
+  # marketplaces
+  - amazon.*
+  # hard-paywalled news
+  - nytimes.com
+  - wsj.com
+  - ft.com
+  - bloomberg.com
+  - theinformation.com
+  - economist.com
+  - barrons.com
+  - seekingalpha.com
+
+# Domains you are licensed / have written permission to fetch automatically.
+nofetch_exceptions: []
+
+politeness:
+  min_host_interval_s: 2.0   # between requests to one host (raised to a site's Crawl-delay); minimum 1.0
+  max_crawl_delay_s: 10      # cap applied to robots.txt Crawl-delay
+  retry_after_max_s: 30      # 429/503: wait and retry once only if Retry-After <= this
+  giveup_backoff_s: 300      # stop requesting a host this long after a 429/503 we don't retry
+
+circuit_breaker:
+  threshold: 2               # blocking responses (401/403/429/451/503, bot challenges) per domain...
+  open_s: 3600               # ...before the domain is skipped for this long
+
+robots:
+  ttl_s: 86400               # RFC 9309: cache at most 24 h
+  unreachable_ttl_s: 900     # 5xx/429/unreachable robots.txt = disallow, re-checked after this

@@ -1,0 +1,177 @@
+# --------------------------------------------------------------------------- #
+# Resurge model registry - FREE tiers only (researched November 2026).
+#
+# Every provider below exposes an OpenAI-compatible /chat/completions endpoint,
+# so one lean client serves all of them. Limits are conservative defaults taken
+# from provider docs / community reports; the router ALSO learns live from
+# 429s and x-ratelimit headers, auto-disables models that 404/403, and
+# `resurge doctor` lists what your keys can really reach. Edit freely.
+#
+# Fields
+#   family           model lineage - used for cross-family verification
+#   tags             capabilities the router matches against role needs
+#   quality          prior 0..1 (router blends with learned success rate)
+#   rpm/rpd/tpm/tpd  per-model limits (null = unknown/unlimited)
+#   json_mode        send response_format={"type":"json_object"}
+#   system_prompt    provider accepts a system role (else folded into user)
+#   reasoning_effort optional, for reasoning models that accept it
+#   trains_on_data   free tier may use prompts for training (excluded by --private)
+# --------------------------------------------------------------------------- #
+
+providers:
+  groq:
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: [GROQ_API_KEY]
+    signup: https://console.groq.com/keys
+    free: true
+    trains_on_data: false
+    concurrency: 4
+    reset_tz: UTC
+    notes: "No card. ~30 RPM / 1K RPD per model; tight TPM (6-12K) -> best for short, fast calls. Cached tokens don't count toward limits."
+    models:
+      - {id: openai/gpt-oss-120b, family: gpt-oss, tags: [reasoning, analysis, verifier, writer], quality: 0.86, context: 131072, max_output: 65536, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, reasoning_effort: medium}
+      - {id: openai/gpt-oss-20b, family: gpt-oss, tags: [fast, extraction, verifier], quality: 0.74, context: 131072, max_output: 65536, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, reasoning_effort: low}
+      - {id: qwen/qwen3.8-27b, family: qwen, tags: [reasoning, extraction, verifier, analysis], quality: 0.80, context: 131072, max_output: 16384, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, preview: true}
+      - {id: llama-3.3-70b-versatile, family: llama, tags: [verifier, writer, analysis], quality: 0.78, context: 131072, max_output: 32768, rpm: 30, rpd: 1000, tpm: 12000, tpd: 100000}
+      - {id: llama-3.1-8b-instant, family: llama, tags: [fast], quality: 0.55, context: 131072, max_output: 8192, rpm: 30, rpd: 14400, tpm: 6000, tpd: 500000}
+      - {id: minimaxai/minimax-m2.7, family: minimax, tags: [reasoning, writer, analysis], quality: 0.83, context: 196608, max_output: 32768, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, preview: true}
+      # Prompt-injection classifier (not a chat model) - used only by the Security & Compliance Officer
+      - {id: meta-llama/llama-prompt-guard-2-86m, family: prompt-guard, tags: [guard], quality: 0.5, context: 512, max_output: 16, rpm: 30, rpd: 14400, tpm: 15000, json_mode: false, system_prompt: false}
+
+  gemini:
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key_env: [GEMINI_API_KEY, GOOGLE_API_KEY]
+    signup: https://aistudio.google.com/apikey
+    free: true
+    trains_on_data: true   # free tier may be used to improve Google products (outside EU/UK/EEA)
+    concurrency: 2
+    reset_tz: America/Los_Angeles
+    notes: "No card. Gemini 3.x Flash ~5 RPM / ~20 RPD (reserve for highest-value calls); Flash-Lite ~15 RPM / ~500 RPD; Gemma 4 ~15 RPM / ~1.5K RPD; 1M context."
+    models:
+      - {id: gemini-3.8-flash, family: gemini, tags: [writer, analysis, reasoning], quality: 0.90, context: 1048576, max_output: 65536, rpm: 5, rpd: 20, tpm: 250000, reasoning_effort: low}
+      - {id: gemini-3.6-flash, family: gemini, tags: [writer, analysis, reasoning], quality: 0.87, context: 1048576, max_output: 65536, rpm: 5, rpd: 20, tpm: 250000, reasoning_effort: low}
+      - {id: gemini-3.5-flash-lite, family: gemini, tags: [extraction, fast, analysis, writer], quality: 0.80, context: 1048576, max_output: 65536, rpm: 15, rpd: 500, tpm: 250000}
+      - {id: gemini-3.1-flash-lite, family: gemini, tags: [extraction, fast], quality: 0.74, context: 1048576, max_output: 65536, rpm: 15, rpd: 500, tpm: 250000}
+      - {id: gemma-4-31b-it, family: gemma, tags: [extraction, verifier, writer], quality: 0.78, context: 262144, max_output: 8192, rpm: 15, rpd: 1500, tpm: 15000, json_mode: false}
+      - {id: gemma-4-26b-a4b-it, family: gemma, tags: [extraction, fast], quality: 0.72, context: 262144, max_output: 8192, rpm: 15, rpd: 1500, tpm: 15000, json_mode: false}
+
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: [OPENROUTER_API_KEY]
+    signup: https://openrouter.ai/keys
+    free: true
+    trains_on_data: false  # varies by upstream provider; check model page
+    concurrency: 2
+    reset_tz: UTC
+    # Account-wide limits for ALL :free models together (1000 RPD after a one-time $10 top-up)
+    rpm: 20
+    rpd: 50
+    headers: {HTTP-Referer: "https://github.com/resurge-ci", X-Title: "Resurge"}
+    discover_free_models: true   # pull the live :free catalog at startup (public, keyless)
+    notes: "No card. 20 RPM and 50 requests/day shared across all :free models -> reserve for high-value reasoning/QA calls."
+    models:
+      - {id: "nvidia/nemotron-3-ultra-550b-a55b:free", family: nemotron, tags: [reasoning, analysis, verifier, writer], quality: 0.88, context: 1000000, max_output: 32768}
+      - {id: "nvidia/nemotron-3.5-super-vl:free", family: nemotron, tags: [analysis, extraction], quality: 0.80, context: 1000000, max_output: 32768}
+      - {id: "google/gemma-4-31b-it:free", family: gemma, tags: [extraction, writer, verifier], quality: 0.78, context: 262144, max_output: 8192}
+      - {id: "baidu/ernie-5.5-flash-preview:free", family: ernie, tags: [extraction, fast], quality: 0.72, context: 1024000, max_output: 16384}
+      - {id: "inclusionai/ling-3.2-flash:free", family: ling, tags: [fast, extraction], quality: 0.70, context: 1048576, max_output: 16384}
+      - {id: "openrouter/free", family: auto, tags: [fallback], quality: 0.60, context: 200000, max_output: 8192}
+
+  mistral:
+    base_url: https://api.mistral.ai/v1
+    api_key_env: [MISTRAL_API_KEY]
+    signup: https://console.mistral.ai/api-keys
+    free: true
+    trains_on_data: true   # free plan inputs/outputs may be used for training
+    concurrency: 1
+    reset_tz: UTC
+    rpm: 60   # ~1 request/second on the free tier
+    notes: "Free plan with restrictive per-model limits; very generous monthly token pool."
+    models:
+      - {id: mistral-large-latest, family: mistral, tags: [writer, analysis, reasoning], quality: 0.84, context: 131072, max_output: 16384}
+      - {id: mistral-medium-latest, family: mistral, tags: [writer, analysis, extraction], quality: 0.82, context: 131072, max_output: 16384}
+      - {id: mistral-small-latest, family: mistral, tags: [extraction, fast, verifier], quality: 0.74, context: 131072, max_output: 16384}
+
+  nvidia:
+    base_url: https://integrate.api.nvidia.com/v1
+    api_key_env: [NVIDIA_API_KEY]
+    signup: https://build.nvidia.com
+    free: true
+    trains_on_data: false
+    concurrency: 2
+    reset_tz: UTC
+    rpm: 40   # account-wide, development use
+    notes: "Free developer access (~40 RPM). Model IDs are namespaced; run `resurge doctor` to list."
+    models:
+      - {id: openai/gpt-oss-120b, family: gpt-oss, tags: [reasoning, analysis, verifier], quality: 0.85, context: 131072, max_output: 32768}
+      - {id: meta/llama-3.3-70b-instruct, family: llama, tags: [verifier, writer], quality: 0.77, context: 131072, max_output: 8192}
+
+  cerebras:
+    base_url: https://api.cerebras.ai/v1
+    api_key_env: [CEREBRAS_API_KEY]
+    signup: https://cloud.cerebras.ai
+    free: trial     # $5 / 30-day trial credits as of 2026
+    trains_on_data: false
+    concurrency: 1
+    reset_tz: UTC
+    notes: "Trial credits only. Extremely fast."
+    models:
+      - {id: gpt-oss-120b, family: gpt-oss, tags: [reasoning, analysis, extraction], quality: 0.85, context: 131072, max_output: 32768, rpm: 5, tpm: 30000, tpd: 1000000}
+
+  cloudflare:
+    base_url: "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1"
+    api_key_env: [CLOUDFLARE_API_TOKEN]
+    requires_env: [CLOUDFLARE_ACCOUNT_ID]
+    signup: https://dash.cloudflare.com/profile/api-tokens
+    free: true
+    trains_on_data: false
+    concurrency: 2
+    reset_tz: UTC
+    notes: "10K neurons/day free (~ a few hundred short calls)."
+    models:
+      - {id: "@cf/openai/gpt-oss-120b", family: gpt-oss, tags: [reasoning, analysis], quality: 0.84, context: 131072, max_output: 16384, rpd: 150}
+      - {id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", family: llama, tags: [writer, verifier], quality: 0.76, context: 24000, max_output: 4096, rpd: 200}
+
+  ollama:
+    base_url: http://localhost:11434/v1
+    api_key_env: []
+    local: true
+    signup: https://ollama.com/download
+    free: true
+    trains_on_data: false
+    concurrency: 1
+    reset_tz: UTC
+    discover_local_models: true   # any model you `ollama pull` is auto-registered
+    notes: "Unlimited & private. Quality depends on the local model; always the last-resort fallback."
+    models:
+      - {id: "qwen2.5:7b", family: qwen, tags: [local, fallback, fast, extraction, verifier, writer, analysis, reasoning], quality: 0.50, context: 32768, max_output: 4096}
+
+# --------------------------------------------------------------------------- #
+# Role -> model routing. `prefer` is an ordered wish list (each department gets a
+# different first choice so the company uses many model families); `tags` widens
+# the pool; local/fallback models are appended automatically. Verification roles
+# avoid the producer's model family (cross-model checking).
+# --------------------------------------------------------------------------- #
+roles:
+  ceo:                 {prefer: [gemini/gemini-3.8-flash, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/openai/gpt-oss-120b, mistral/mistral-large-latest], tags: [writer, reasoning], max_tokens: 3000}
+  chief_of_staff:      {prefer: [groq/llama-3.1-8b-instant, gemini/gemini-3.1-flash-lite, groq/openai/gpt-oss-20b], tags: [fast], max_tokens: 1200}
+  market_scout:        {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite, groq/qwen/qwen3.8-27b], tags: [reasoning, analysis], max_tokens: 2500}
+  research_strategist: {prefer: [groq/qwen/qwen3.8-27b, groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite], tags: [reasoning], max_tokens: 3500}
+  researcher_product:  {prefer: [gemini/gemini-3.5-flash-lite, gemini/gemma-4-31b-it, groq/openai/gpt-oss-20b, mistral/mistral-small-latest], tags: [extraction], max_tokens: 3000}
+  researcher_market:   {prefer: [gemini/gemma-4-31b-it, gemini/gemini-3.1-flash-lite, mistral/mistral-small-latest, groq/openai/gpt-oss-20b], tags: [extraction], max_tokens: 3000}
+  researcher_voice:    {prefer: [groq/openai/gpt-oss-20b, gemini/gemma-4-26b-a4b-it, openrouter/google/gemma-4-31b-it:free], tags: [extraction], max_tokens: 3000}
+  researcher_tech:     {prefer: [mistral/mistral-small-latest, gemini/gemini-3.1-flash-lite, groq/openai/gpt-oss-20b], tags: [extraction], max_tokens: 3000}
+  fact_checker:        {prefer: [groq/llama-3.3-70b-versatile, groq/qwen/qwen3.8-27b, nvidia/openai/gpt-oss-120b, mistral/mistral-small-latest], tags: [verifier], max_tokens: 2500, cross_family: true}
+  qa_reviewer:         {prefer: [openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/openai/gpt-oss-120b, gemini/gemini-3.6-flash], tags: [verifier, reasoning], max_tokens: 2000, cross_family: true}
+  data_analyst:        {prefer: [gemini/gemini-3.5-flash-lite, groq/openai/gpt-oss-120b, mistral/mistral-medium-latest], tags: [analysis], max_tokens: 4000}
+  strategy_analyst:    {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.6-flash, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/minimaxai/minimax-m2.7], tags: [analysis, reasoning], max_tokens: 4000}
+  risk_officer:        {prefer: [openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/qwen/qwen3.8-27b, groq/minimaxai/minimax-m2.7, groq/openai/gpt-oss-120b], tags: [reasoning], max_tokens: 3000}
+  report_writer:       {prefer: [mistral/mistral-medium-latest, gemini/gemini-3.6-flash, groq/llama-3.3-70b-versatile, groq/openai/gpt-oss-120b], tags: [writer], max_tokens: 3500}
+  reflector:           {prefer: [groq/openai/gpt-oss-120b, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, gemini/gemini-3.5-flash-lite], tags: [reasoning], max_tokens: 2500}
+  security_guard:      {prefer: [groq/meta-llama/llama-prompt-guard-2-86m], tags: [guard], max_tokens: 8, fallback: false}
+  # RAG chat over finished runs (resurge chat / dashboard / MCP ask_research): fast, strong, generous daily quota
+  rag_answerer:        {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite, nvidia/openai/gpt-oss-120b, groq/llama-3.3-70b-versatile, mistral/mistral-medium-latest], tags: [writer, analysis], max_tokens: 1200}
+  rag_condenser:       {prefer: [groq/llama-3.1-8b-instant, gemini/gemini-3.1-flash-lite, groq/openai/gpt-oss-20b], tags: [fast], max_tokens: 200}
+
+# Reference price used ONLY to report the money you saved vs a paid frontier API.
+reference_pricing_usd_per_million: {input: 3.0, output: 15.0}

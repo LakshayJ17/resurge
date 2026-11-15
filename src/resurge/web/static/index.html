@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resurge Dashboard</title>
+<style>
+:root{--bg:#f6f7fb;--panel:#ffffff;--ink:#1f2a44;--muted:#64748b;--line:#e2e8f0;--accent:#14b8a6;--accent2:#6366f1;
+--warn:#f59e0b;--bad:#ef4444;--good:#22c55e;--chip:#eef2ff;--shadow:0 1px 2px rgba(15,23,42,.06),0 4px 16px rgba(15,23,42,.05)}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1020;--panel:#121a2e;--ink:#e6eaf3;--muted:#94a3b8;--line:#22304d;--chip:#1c2742;--shadow:none}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;letter-spacing:.2px}header .tag{color:var(--muted);font-size:12px}
+nav{margin-left:auto;display:flex;gap:6px}nav button{background:none;border:1px solid var(--line);color:var(--ink);padding:6px 12px;border-radius:8px;cursor:pointer}
+nav button.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+main{display:grid;grid-template-columns:330px 1fr 340px;gap:16px;padding:16px 22px;max-width:1500px;margin:auto}
+@media (max-width:1100px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);margin-bottom:16px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font:inherit}
+textarea{min-height:54px;resize:vertical}.row{display:flex;gap:8px}.row>*{flex:1}
+.checks{display:flex;gap:14px;margin-top:8px;font-size:13px}.checks label{display:flex;gap:6px;align-items:center;color:var(--ink);margin:0}
+.checks input{width:auto}
+button.primary{margin-top:12px;width:100%;padding:10px;border:0;border-radius:9px;background:linear-gradient(90deg,var(--accent2),var(--accent));color:#fff;font-weight:600;cursor:pointer}
+button.primary:disabled{opacity:.6;cursor:wait}
+#feed{height:calc(100vh - 210px);min-height:420px;overflow:auto;font-size:13px}
+.ev{display:grid;grid-template-columns:62px 170px 1fr;gap:8px;padding:5px 2px;border-bottom:1px dashed var(--line)}
+.ev .t{color:var(--muted);font-variant-numeric:tabular-nums}.ev .a{font-weight:600}
+.ev.stage{grid-template-columns:1fr;font-weight:700;padding:10px 2px 6px;border-bottom:1px solid var(--line)}
+.ev.warn .m{color:var(--warn)}.ev.error .m{color:var(--bad)}.ev .md{color:var(--muted);font-size:12px}
+.dept{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.run{padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer}
+.run:hover,.run.sel{border-color:var(--accent)}.run b{display:block}.run small{color:var(--muted)}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;background:var(--chip);margin-right:4px}
+.pill.done{background:rgba(34,197,94,.15);color:var(--good)}.pill.failed{background:rgba(239,68,68,.15);color:var(--bad)}
+.pill.running{background:rgba(245,158,11,.15);color:var(--warn)}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.kpi{border:1px solid var(--line);border-radius:10px;padding:8px}
+.kpi b{font-size:18px;display:block}.kpi small{color:var(--muted)}
+.files a{display:inline-block;margin:3px 6px 3px 0;color:var(--accent2);text-decoration:none;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px}.view{display:none}.view.on{display:block}
+.wide{grid-column:1/-1}.muted{color:var(--muted)}h3{margin:6px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>⟲ Resurge</h1><span class="tag">AI competitive-intelligence company · free-tier models · multi-model verified</span>
+  <nav><button data-v="ops" class="on">Operations</button><button data-v="org">Org chart</button>
+  <button data-v="learn">Learning</button><button data-v="prov">Providers</button></nav>
+</header>
+
+<main id="ops" class="view on">
+  <section>
+    <div class="card"><h2>New engagement</h2>
+      <label>Target company / product / market</label><input id="target" placeholder="e.g. Notion">
+      <label>Competitors (comma-separated, optional)</label><input id="competitors" placeholder="auto-discover if empty">
+      <div class="row"><div><label>Depth</label><select id="depth"><option>quick</option><option selected>standard</option><option>deep</option></select></div>
+      <div><label>Max competitors</label><input id="max" type="number" value="4" min="1" max="8"></div></div>
+      <label>Focus areas</label><input id="focus" placeholder="pricing, AI features, enterprise">
+      <label>Client questions (one per line)</label><textarea id="questions" placeholder="Who is winning the SMB segment?"></textarea>
+      <div class="checks"><label><input type="checkbox" id="local"> Local only</label><label><input type="checkbox" id="private"> Private mode</label></div>
+      <button class="primary" id="go">Open engagement</button>
+    </div>
+    <div class="card"><h2>Engagements</h2><div id="runs" class="muted">Loading…</div></div>
+  </section>
+  <section><div class="card"><h2 id="feedTitle">Company activity</h2><div id="feed" class="muted">Select or start an engagement.</div></div></section>
+  <section><div class="card"><h2>Deliverables</h2><div id="detail" class="muted">—</div></div></section>
+</main>
+
+<main id="org" class="view"><div class="card wide"><h2>Org chart · departments, agents and live model routing</h2><div id="orgT">Loading…</div></div></main>
+<main id="learn" class="view"><div class="card wide"><h2>What the company has learned</h2><div id="learnT">Loading…</div></div></main>
+<main id="prov" class="view"><div class="card wide"><h2>Free LLM providers</h2><div id="provT">Loading…</div></div></main>
+
+<script>
+const DEPT={"Executive Office":"#a855f7","Strategy & Planning":"#06b6d4","Research":"#3b82f6","Quality Assurance":"#22c55e",
+"Analysis":"#eab308","Risk Office":"#ef4444","Design & Communications":"#ec4899","Learning & Development":"#14b8a6",
+"Infrastructure (CTO)":"#94a3b8","Finance (CFO)":"#84cc16"};
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let current=null, lastEv=0, timer=null;
+async function j(u,o){const r=await fetch(u,o);if(!r.ok)throw new Error(await r.text());return r.json()}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
+ b.classList.add("on");document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));$("#"+b.dataset.v).classList.add("on");
+ ({org:loadOrg,learn:loadLearn,prov:loadProv}[b.dataset.v]||(()=>{}))()});
+async function loadRuns(){const rs=await j("/api/runs");$("#runs").innerHTML=rs.length?rs.map(r=>{const st=r.running?"running":r.status;
+ return `<div class="run ${r.id===current?"sel":""}" onclick="select('${r.id}')"><b>${esc(r.target)}</b><span class="pill ${st}">${st}</span>
+ <span class="pill">Q ${r.quality!=null?Math.round(r.quality):"–"}</span><span class="pill">${r.facts??"–"} facts</span><br><small>${r.id}</small></div>`}).join(""):"No engagements yet."}
+async function select(id){current=id;lastEv=0;$("#feed").innerHTML="";$("#feedTitle").textContent="Company activity · "+id;clearInterval(timer);
+ await poll();timer=setInterval(poll,1500);loadRuns()}
+async function poll(){if(!current)return;const evs=await j(`/api/runs/${current}/events?after=${lastEv}`);const f=$("#feed");
+ for(const e of evs){lastEv=e.id;if(e.kind==="llm")continue;const t=new Date(e.ts*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  const d=document.createElement("div");const c=DEPT[e.department]||"#999";
+  if(e.kind==="stage"){d.className="ev stage";d.innerHTML=`<span><span class="dept" style="background:${c}"></span>${esc(e.message)} <span class="muted">· ${esc(e.department)}</span></span>`}
+  else{d.className="ev "+e.kind;d.innerHTML=`<span class="t">${t}</span><span class="a"><span class="dept" style="background:${c}"></span>${esc(e.agent)}</span>
+  <span class="m">${esc(e.message)} ${e.data&&e.data.model?`<span class="md">(${esc(e.data.model)})</span>`:""}</span>`}
+  f.appendChild(d);f.scrollTop=f.scrollHeight}
+ const det=await j(`/api/runs/${current}`);renderDetail(det);if(["done","failed"].includes(det.run.status)&&evs.length===0){clearInterval(timer);loadRuns()}}
+function renderDetail(d){const r=d.run,s=d.summary;let h=`<span class="pill ${r.status}">${r.status}</span>`;if(r.error)h+=`<p style="color:var(--bad)">${esc(r.error)}</p>`;
+ if(s){const m=s.metrics;h+=`<h3>${esc(s.headline)}</h3><p>${esc(s.summary)}</p><div class="kpis">
+ <div class="kpi"><b>${m.quality_score}</b><small>quality /100</small></div><div class="kpi"><b>${m.facts_usable}</b><small>verified facts</small></div>
+ <div class="kpi"><b>${Math.round(m.coverage*100)}%</b><small>coverage</small></div><div class="kpi"><b>${m.avg_qa_score}</b><small>QA score /10</small></div>
+ <div class="kpi"><b>${m.llm_calls}</b><small>LLM calls (+${m.cache_hits} cached)</small></div><div class="kpi"><b>$0.00</b><small>≈ $${m.estimated_paid_cost_usd.toFixed(2)} paid</small></div></div>
+ <h3>Top risks</h3><table>${s.risks.map(x=>`<tr><td>${x.id}</td><td>${esc(x.title)}</td><td>${x.score}</td></tr>`).join("")}</table>`;
+ if(s.changes.length)h+=`<h3>Changes since last run</h3><ul>${s.changes.map(c=>`<li>${esc(c)}</li>`).join("")}</ul>`}
+ const rid=encodeURIComponent(r.id);
+ if(d.files.includes("site/index.html"))h+=`<div class="files" style="margin:14px 0"><a href="/files/${rid}/site/index.html" target="_blank" rel="noopener"><b>Open report →</b></a><a href="/files/${rid}/site/ask.html" target="_blank" rel="noopener"><b>✦ Ask the research</b></a></div>`;
+ if(d.files.length)h+=`<h3>Files</h3><div class="files">${d.files.filter(f=>!f.startsWith("site/")&&(!f.endsWith(".png")||f.includes("positioning")||f.includes("pricing"))).map(f=>`<a href="/files/${rid}/${f}" target="_blank" rel="noopener">${esc(f)}</a>`).join("")}</div>`;
+ $("#detail").innerHTML=h}
+$("#go").onclick=async()=>{const t=$("#target").value.trim();if(!t)return $("#target").focus();$("#go").disabled=true;
+ try{const body={target:t,competitors:$("#competitors").value.split(",").map(x=>x.trim()).filter(Boolean),depth:$("#depth").value,
+ max_competitors:+$("#max").value,focus_areas:$("#focus").value.split(",").map(x=>x.trim()).filter(Boolean),
+ questions:$("#questions").value.split("\n").map(x=>x.trim()).filter(Boolean),local:$("#local").checked,private:$("#private").checked};
+ const r=await j("/api/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});await select(r.run_id)}
+ catch(e){alert(e.message)}finally{$("#go").disabled=false}};
+async function loadOrg(){const rows=await j("/api/org");$("#orgT").innerHTML=`<table><tr><th>Department</th><th>Agent</th><th>Mission</th><th>Routes to (now)</th></tr>${rows.map(r=>
+ `<tr><td><span class="dept" style="background:${DEPT[r.department]||"#999"}"></span>${esc(r.department)}</td><td><b>${esc(r.title)}</b></td><td>${esc(r.mission)}</td>
+ <td>${r.role?(r.routes.length?r.routes.map(esc).join(" → "):"<span style='color:var(--warn)'>no model available</span>"):"<span class='muted'>deterministic code · 0 tokens</span>"}</td></tr>`).join("")}</table>`}
+function spark(vals){if(!vals.length)return"<span class='muted'>no runs yet</span>";const w=420,h=60,mx=100,step=w/Math.max(1,vals.length-1);
+ const pts=vals.map((v,i)=>`${(i*step).toFixed(1)},${(h-v/mx*h).toFixed(1)}`).join(" ");
+ return `<svg width="${w}" height="${h+6}" role="img" aria-label="quality trend"><polyline fill="none" stroke="var(--accent)" stroke-width="2.5" points="${pts}"/></svg>`}
+async function loadLearn(){const d=await j("/api/learn");$("#learnT").innerHTML=`<h3>Quality trend</h3>${spark(d.quality.map(x=>x[1]))}
+ <h3>Playbook lessons (ACE)</h3><table><tr><th>ID</th><th>Role</th><th>Lesson</th><th>+</th><th>−</th></tr>${d.lessons.map(l=>`<tr><td>${l.id}</td><td>${esc(l.role)}</td><td>${esc(l.text)}</td><td>${l.helpful}</td><td>${l.harmful}</td></tr>`).join("")||"<tr><td colspan=5 class=muted>none yet</td></tr>"}</table>
+ <h3>Model leaderboard</h3><table><tr><th>Role</th><th>Model</th><th>Calls</th><th>Success</th><th>Validated quality</th></tr>${d.models.map(m=>`<tr><td>${esc(m.role)}</td><td>${esc(m.model_id)}</td><td>${m.calls}</td>
+ <td>${m.calls?Math.round(m.successes/m.calls*100)+"%":"–"}</td><td>${m.quality_n?(m.quality_sum/m.quality_n).toFixed(2):"–"}</td></tr>`).join("")}</table>
+ <h3>Source reputation</h3><table><tr><th>Domain</th><th>Supported</th><th>Partial</th><th>Unsupported</th><th>Reliability</th></tr>${d.sources.map(s=>`<tr><td>${esc(s.domain)}</td><td>${s.supported}</td><td>${s.partial}</td><td>${s.unsupported}</td><td>${s.reliability}</td></tr>`).join("")}</table>`}
+async function loadProv(){const rows=await j("/api/providers");$("#provT").innerHTML=`<table><tr><th>Provider</th><th>Configured</th><th>Models</th><th>Trains on data</th><th>Key</th><th>Notes</th></tr>${rows.map(r=>
+ `<tr><td><b>${esc(r.provider)}</b></td><td>${r.configured?"✅":"—"}</td><td>${r.models}</td><td>${r.trains_on_data?"yes":"no"}</td><td><a href="${esc(r.signup)}" target="_blank" rel="noopener">${esc(r.key_env)}</a></td><td class="muted">${esc(r.notes)}</td></tr>`).join("")}</table>`}
+loadRuns();setInterval(loadRuns,8000);
+</script>
+</body>
+</html>

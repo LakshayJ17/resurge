@@ -1,0 +1,85 @@
+{% extends "base.html.j2" %}
+{% block title %}About this research{% endblock %}
+{% block heading %}About this research{% endblock %}
+{% block lede %}<p class="lede">How this report was made, how far to trust it, and where to get the data.</p>{% endblock %}
+{% block content %}
+<section>
+  <h2>Quality</h2>
+  <div class="table-wrap">
+  <table class="t">
+    <tbody>
+      <tr><th scope="row">Quality score</th><td class="num">{{ metrics.quality_score | round(1) }} of 100</td><td class="small muted">Combines verification, grounding, coverage and review scores</td></tr>
+      <tr><th scope="row">Claims verified</th><td class="num">{{ metrics.verification_rate | pct }}</td><td class="small muted">{{ metrics.facts_usable }} of {{ metrics.facts_total }} extracted claims passed checking</td></tr>
+      <tr><th scope="row">Quotes found on their page</th><td class="num">{{ metrics.grounding_rate | pct }}</td><td class="small muted">Each quote is matched against the text of its source</td></tr>
+      <tr><th scope="row">Topics covered</th><td class="num">{{ metrics.coverage | pct }}</td><td class="small muted">Company and topic pairs with at least one verified fact</td></tr>
+      <tr><th scope="row">Cost</th><td class="num">${{ "%.2f" | format(metrics.actual_cost_usd) }}</td><td class="small muted">{{ metrics.llm_calls }} AI calls on free tiers</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>How claims were checked</h2>
+  {{ ui.fig(charts.funnel, "From extracted claims to verified facts", "Each step keeps only what passed the one before.") }}
+  {{ ui.fig(charts.facts_per_company, "Verified facts per company", "Profiles built on few facts are less certain.") }}
+  <p class="measure">{{ report.methodology or "Public web research by a team of AI agents; every fact was extracted with a verbatim quote and checked by a second model." }}</p>
+</section>
+
+<section id="caveats">
+  <h2>Limits</h2>
+  {% if quality_risks %}
+  <ul class="rows">
+    {% for r in quality_risks %}
+    <li><h3>{{ r.title }}</h3><p class="small" style="color: var(--ink-2)">{{ r.description }}</p>{% if r.mitigation %}<p class="small muted">What to do: {{ r.mitigation }}</p>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No research-quality issues were flagged.</p>{% endif %}
+</section>
+
+{% if downloads %}
+<section>
+  <h2>Downloads</h2>
+  <ul class="downloads">
+    {% for label, href in downloads.items() %}<li><a href="{{ href }}">{{ label }}</a></li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if metrics.model_usage %}
+<section>
+  <h2>AI models used</h2>
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Model</th><th class="num">Calls</th><th>Tasks</th></tr></thead>
+    <tbody>{% for u in metrics.model_usage | sort(attribute="calls", reverse=True) %}{% if u.calls %}<tr><td>{{ u.model_id }}</td><td class="num">{{ u.calls }}</td><td class="small">{{ u.roles | join(", ") | replace("_", " ") }}</td></tr>{% endif %}{% endfor %}</tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% if report.swots or report.market.five_forces %}
+<section>
+  <h2>Appendix: framework views</h2>
+  <p class="note">From an earlier report format. The rest of this report covers the same ground in decision terms.</p>
+  {% for s in report.swots %}
+  <h3 style="margin-top:20px">SWOT: {{ s.subject }}</h3>
+  <div class="cols">
+    <div class="col"><h3>Strengths</h3>{{ ui.insights(s.strengths) }}</div><div class="col"><h3>Weaknesses</h3>{{ ui.insights(s.weaknesses) }}</div>
+    <div class="col"><h3>Opportunities</h3>{{ ui.insights(s.opportunities) }}</div><div class="col"><h3>Threats</h3>{{ ui.insights(s.threats) }}</div>
+  </div>
+  {% endfor %}
+  {% if report.market.five_forces %}
+  <h3 style="margin-top:20px">Five forces</h3>
+  <div class="table-wrap"><table class="t"><tbody>{% for f in report.market.five_forces %}<tr><th scope="row">{{ f.force }}</th><td class="num">{{ f.rating }} of 5</td><td class="small">{{ f.rationale }}</td></tr>{% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if report.lessons_applied %}
+<section>
+  <h2>Lessons applied from earlier runs</h2>
+  <ul class="measure small">{% for l in report.lessons_applied %}<li>{{ l.text }} <span class="muted">({{ l.role | replace("_", " ") }})</span></li>{% endfor %}</ul>
+</section>
+{% endif %}
+<p class="note">Run {{ report.run_id }}, {{ generated }}.</p>
+{% endblock %}

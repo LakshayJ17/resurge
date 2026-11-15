@@ -1,0 +1,25 @@
+{% extends "base.html.j2" %}
+{% block title %}Ask the research{% endblock %}
+{% block heading %}Ask the research{% endblock %}
+{% block lede %}<p class="lede">Questions about {{ target }}'s competitors, answered only from this report's verified facts, with sources.</p>{% endblock %}
+{% block content %}
+<section id="ask" class="ask" data-run="{{ report.run_id }}">
+  <div id="ask-log" class="ask-log" aria-live="polite"></div>
+  <div id="ask-offline">
+    <p class="measure">This page is open as a file, so nothing can answer questions. Start the Resurge app and open the report from it:</p>
+    <pre class="code">resurge ui</pre>
+    <p class="measure small">Or ask in the terminal: <code>resurge chat {{ report.run_id }}</code></p>
+  </div>
+  <form id="ask-form" class="ask-form" hidden>
+    <label for="ask-input" class="sr-only">Your question</label>
+    <input id="ask-input" type="text" maxlength="500" autocomplete="off" placeholder="{{ suggestions[0] if suggestions else 'Which competitor is cheapest for 50 people?' }}">
+    <button type="submit" class="btn">Ask</button>
+  </form>
+  <p id="ask-status" class="small muted" role="status"></p>
+  {% if suggestions %}
+  <div class="suggest">Questions to start with
+    {% for q in suggestions %}<button type="button" data-suggest="{{ q }}">{{ q }}</button>{% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

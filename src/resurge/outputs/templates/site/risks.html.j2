@@ -1,0 +1,21 @@
+{% extends "base.html.j2" %}
+{% block title %}Risks to watch{% endblock %}
+{% block heading %}Risks to watch{% endblock %}
+{% block lede %}<p class="lede">Threats from competitors' moves, ranked by likelihood and impact, each with a counter-move and the signs that would make it urgent.</p>{% endblock %}
+{% block content %}
+{% if business_risks %}
+<section>
+  <h2>Risk map</h2>
+  {{ ui.fig(charts.risk_matrix, "Likelihood and impact", "Darker cells are more severe. Numbers match the list below.") }}
+</section>
+<section>
+  <h2>Risks</h2>
+  <ol class="rows">
+    {% for r in business_risks %}{{ ui.risk_row(r, loop.index) }}{% endfor %}
+  </ol>
+</section>
+{% else %}
+<p class="muted">No competitive risks were identified from the evidence in this run.</p>
+{% endif %}
+<p class="note">Limits of the research itself, such as coverage gaps and single-source facts, are on <a href="about.html#caveats">About this research</a>.</p>
+{% endblock %}

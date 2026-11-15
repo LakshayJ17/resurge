@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "resurge": {
+      "command": "/ABSOLUTE/PATH/TO/resurge/.venv/bin/resurge",
+      "args": ["mcp"],
+      "env": {
+        "RESURGE_HOME": "/ABSOLUTE/PATH/TO/resurge",
+        "RESURGE_CONFIG_DIR": "/ABSOLUTE/PATH/TO/resurge/config"
+      }
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{% macro fig(chart, title, note=None) -%}
+{% if chart %}
+<figure class="fig">
+  <p class="fig-title">{{ title }}</p>
+  {% if note %}<p class="fig-note">{{ note }}</p>{% endif %}
+  <div class="fig-body">{{ chart }}</div>
+</figure>
+{% endif %}
+{%- endmacro %}
+
+{% macro threat(level) -%}
+{% if level %}{{ threat_label(level) }} threat, {{ level }} of 5{% else %}Threat not rated{% endif %}
+{%- endmacro %}
+
+{% macro ext(url, label=None) -%}
+{% set u = safe_url(url) %}{% if u %}<a href="{{ u }}" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer">{{ label or (u | domain) }}</a>{% endif %}
+{%- endmacro %}
+
+{% macro insights(items, empty="Nothing in the evidence.") -%}
+{% if items %}
+<ul>
+  {% for i in items %}<li>{{ cite.text(i.text) }}{{ cite(i.fact_ids) }}{% if i.inferred %} <span class="muted small">(analyst judgement)</span>{% endif %}</li>{% endfor %}
+</ul>
+{% else %}<p class="muted small">{{ empty }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro status_cell(cell) -%}
+{% set st = STATUS[cell.status if cell else "unknown"] %}
+<span class="st {{ st[2] }}"{% if cell and cell.note %} title="{{ cell.note }}"{% endif %}><span aria-hidden="true">{{ st[0] }}</span> {{ st[1] }}</span>{% if cell %}{{ cite(cell.fact_ids, 2) }}{% endif %}
+{%- endmacro %}
+
+{% macro price(tv) -%}
+{% if tv.monthly is not none and tv.monthly > 0 %}{{ tv.monthly | usd }} <span class="unit">{{ "per seat a month" if tv.per_seat is not false else "a month, flat" }}</span>
+{% elif tv.is_free %}Free
+{% elif tv.tier.price %}{{ tv.tier.price | clip(40) }}
+{% else %}<span class="muted">Not published</span>{% endif %}
+{%- endmacro %}
+
+{% macro when_label(key) -%}
+{% for k, label, span in TIMEFRAMES %}{% if k == key %}{{ label }}, {{ span }}{% endif %}{% endfor %}
+{%- endmacro %}
+
+{% macro rec_row(r, n) -%}
+<li>
+  <div class="row-grid">
+    <div class="row-n">{{ n }}</div>
+    <div class="row-main">
+      <h3>{{ r.title }}{{ cite(r.fact_ids, 3) }}</h3>
+      {% if r.rationale %}<p>{{ cite.text(r.rationale) }}</p>{% endif %}
+      <dl class="facts">
+        {% if r.first_step %}<dt>First step</dt><dd>{{ r.first_step }}</dd>{% endif %}
+        {% if r.metric %}<dt>Success measure</dt><dd>{{ r.metric }}</dd>{% endif %}
+        {% if r.owner %}<dt>Owner</dt><dd>{{ r.owner }}</dd>{% endif %}
+        {% if r.competitors %}<dt>Aimed at</dt><dd>{{ r.competitors | join(", ") }}</dd>{% endif %}
+      </dl>
+    </div>
+    <div class="row-side">{{ r.priority | capitalize }} priority<br>Impact {{ r.impact }} of 5<br>Effort {{ r.effort }} of 5</div>
+  </div>
+</li>
+{%- endmacro %}
+
+{% macro risk_row(r, n) -%}
+{% set band = risk_band(r.score) %}
+<li>
+  <div class="row-grid">
+    <div class="row-n">{{ n }}</div>
+    <div class="row-main">
+      <h3>{{ r.title }}{{ cite(r.fact_ids, 3) }}</h3>
+      {% if r.description %}<p>{{ cite.text(r.description) }}</p>{% endif %}
+      <dl class="facts">
+        {% if r.mitigation %}<dt>Counter-move</dt><dd>{{ cite.text(r.mitigation) }}</dd>{% endif %}
+        {% if r.signals %}<dt>Watch for</dt><dd>{{ r.signals | join("; ") }}</dd>{% endif %}
+        {% if r.owner %}<dt>Owner</dt><dd>{{ r.owner }}</dd>{% endif %}
+        {% if r.related_competitors %}<dt>Competitors</dt><dd>{{ r.related_competitors | join(", ") }}</dd>{% endif %}
+      </dl>
+    </div>
+    <div class="row-side">{{ band }}<br>Likelihood {{ r.likelihood }} of 5<br>Impact {{ r.impact }} of 5</div>
+  </div>
+</li>
+{%- endmacro %}

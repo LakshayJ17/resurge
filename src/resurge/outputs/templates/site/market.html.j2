@@ -1,0 +1,59 @@
+{% extends "base.html.j2" %}
+{% set mk = report.market %}
+{% block title %}Market and news{% endblock %}
+{% block heading %}Market and news{% endblock %}
+{% block lede %}{% if mk.summary %}<p class="lede">{{ cite.text(mk.summary) }}</p>{% endif %}{% endblock %}
+{% block content %}
+{% if mk.trends %}
+<section>
+  <h2>What is changing</h2>
+  <ul class="measure">
+    {% for t in mk.trends %}<li>{{ cite.text(t.text) }}{{ cite(t.fact_ids, 4) }}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if moves %}
+<section>
+  <h2>Competitor moves</h2>
+  {{ ui.fig(charts.timeline, "Moves by month", "Hover a dot for the event. Undated moves are listed below only.") }}
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Date</th><th>Company</th><th>Move</th></tr></thead>
+    <tbody>
+    {% for mv in moves %}
+      <tr><td class="small">{{ mv.when }}</td><td><a href="competitors/{{ mv.competitor | slug }}.html">{{ mv.competitor }}</a></td>
+        <td class="wide">{{ cite.text(mv.text) }}{{ cite(mv.fact_ids, 3) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% set pos = report.positioning %}
+{% if pos.points %}
+<section>
+  <h2>Positioning</h2>
+  {{ ui.fig(charts.positioning, (pos.x_axis | axis) ~ " and " ~ (pos.y_axis | axis), "Analyst scores from 0 to 10 based on the evidence; not a measurement.") }}
+  <div class="table-wrap">
+  <table class="t">
+    <thead><tr><th>Company</th><th class="num">{{ pos.x_axis | axis }}</th><th class="num">{{ pos.y_axis | axis }}</th><th>Reasoning</th></tr></thead>
+    <tbody>
+    {% for pt in pos.points %}
+      <tr{% if pt.is_target %} class="you"{% endif %}><th scope="row">{{ pt.competitor }}</th>
+        <td class="num">{{ pt.x | round(1) }}</td><td class="num">{{ pt.y | round(1) }}</td><td class="wide small">{{ cite.text(pt.rationale) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% if mk.white_space %}
+<section>
+  <h2>Gaps no competitor fills</h2>
+  {{ ui.insights(mk.white_space) }}
+</section>
+{% endif %}
+{% endblock %}
