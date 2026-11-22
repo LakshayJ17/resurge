@@ -215,7 +215,9 @@ class LLMGateway:
                        temperature: float = 0.2, max_tokens: int | None = None,
                        avoid_families: Iterable[str] = (), avoid_models: Iterable[str] = (),
                        force_model: str | None = None, use_cache: bool = True,
-                       record_stats: bool = True) -> LLMResponse:
+                       record_stats: bool = True, max_wait: float | None = None) -> LLMResponse:
+        """``max_wait`` (seconds) caps how long a busy model may be waited for, with no patient second pass:
+        interactive checks pass a small value so a busy model hands over to the next one at once."""
         max_tokens = max_tokens or self.registry.role(role).max_tokens
         cache_key = make_key("llm", role, messages, json_mode, round(temperature, 2))
         if use_cache and self.settings.use_cache:
@@ -236,7 +238,9 @@ class LLMGateway:
             raise NoModelAvailable(f"No model available for role '{role}' (check API keys / quotas: `resurge doctor`)")
         # pass 1: never wait long - move to the next provider instead;
         # pass 2 (only if every candidate was merely busy): wait patiently for the soonest slot.
-        for patience in (self.settings.max_wait_s, max(120.0, self.settings.max_wait_s)):
+        waits = ((self.settings.max_wait_s, max(120.0, self.settings.max_wait_s)) if max_wait is None
+                 else (max(0.0, max_wait),))
+        for patience in waits:
             start = len(attempts)
             resp = await self._try_candidates(cands, role, messages, agent, json_mode, temperature, max_tokens,
                                               est_in, attempts, patience, use_cache, cache_key, record_stats)
@@ -260,10 +264,11 @@ class LLMGateway:
                 eff_max = max_tokens + 2048  # reasoning tokens share the completion budget
             eff_max = min(eff_max, m.max_output)
             if m.tpm:
-                eff_max = min(eff_max, int(m.tpm * 0.95) - est_in)
-                if eff_max < 600:
+                room = int(m.tpm * 0.95) - est_in
+                if room < min(600, eff_max):  # small asks (classifiers want 8 tokens) only need room for themselves
                     attempts.append(f"{m.id}: prompt too large for TPM")
                     continue
+                eff_max = min(eff_max, room)
             est_total = est_in + (eff_max if m.tpm else min(eff_max, 1500))
             if not await self.limiter.acquire(m, est_total, patience):
                 attempts.append(f"{m.id}: rate-limited (would wait)")
@@ -476,7 +481,7 @@ class LLMGateway:
                             temperature: float = 0.1, max_tokens: int | None = None,
                             avoid_families: Iterable[str] = (), max_attempts: int = 3,
                             validator: Callable[[T], list[str]] | None = None,
-                            use_cache: bool = True) -> tuple[T, LLMResponse]:
+                            use_cache: bool = True, max_wait: float | None = None) -> tuple[T, LLMResponse]:
         sys_full = f"{system}\n\n{schema_hint(schema)}\nReturn ONLY the JSON object - no prose, no markdown fences."
         base = [{"role": "system", "content": sys_full}, {"role": "user", "content": user}]
         key = make_key("llm-json", role, base, schema.__name__, round(temperature, 2))
@@ -496,7 +501,7 @@ class LLMGateway:
         for attempt in range(1, max_attempts + 1):
             resp = await self.complete(role=role, messages=msgs, agent=agent, json_mode=True, temperature=temperature,
                                        max_tokens=max_tokens, avoid_families=avoid_families, avoid_models=failed,
-                                       force_model=force, use_cache=False, record_stats=False)
+                                       force_model=force, use_cache=False, record_stats=False, max_wait=max_wait)
             try:
                 obj = schema.model_validate(coerce_root(schema, extract_json(resp.text)))
                 if validator:

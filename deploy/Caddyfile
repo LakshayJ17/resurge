@@ -1,0 +1,6 @@
+# Automatic HTTPS (Let's Encrypt) for the Resurge web app. DOMAIN comes from .env.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy resurge:8000
+	header -Server
+}

@@ -17,7 +17,7 @@ from ..schemas import (
     PricingTier, Recommendation,
 )
 from ..text import tokenize, truncate
-from .base import Agent, fact_line, has_specifics, jargon, valid_ids
+from .base import Agent, client_block, fact_line, has_specifics, jargon, valid_ids
 from .common import InsightOut
 
 
@@ -69,10 +69,18 @@ class ProfileOut(LLMModel):
 
 
 PROFILE_RULES = """Build the profile ONLY from the verified facts listed. Unknown -> null or [].
+- summary: 3-5 sentences (60-110 words). For the client (baseline profile) it is the report's introduction to the
+  company: what it is, when and where it was founded, how big it is, and its main businesses or products (for a group
+  of companies, name the main ones and what each does). For a competitor: what it sells and to whom, how it prices,
+  where it is strong and what changed recently.
+- founded / headquarters / headcount / funding: fill each one a fact states (e.g. "1868", "Mumbai, India",
+  "over 1 million employees", "$1.2B raised; Series D in 2025").
+- products: the main products or businesses, up to 10, each "Name: what it is" in <= 12 words
+  (e.g. "bigbasket: online grocery delivery").
 - pricing_tiers: one entry per plan found in facts. price_monthly_usd = monthly USD per user/seat when a fact states it
   (annual price / 12 if only annual is given); null for free (use 0 for $0 plans), custom or non-USD prices.
   per_seat = true if priced per user/seat/member, false if a flat price, null if unclear.
-- strengths / weaknesses: 2-5 concrete items each (a capability, number or customer fact - not adjectives), citing fact IDs.
+- strengths / weaknesses: 3-6 concrete items each (a capability, number or customer fact - not adjectives), citing fact IDs.
 - recent_moves: launches, pricing changes, funding, acquisitions, leadership changes - start each with the date when known
   (e.g. "Sep 2026: acquired by Bending Spoons for $1.285B"), citing fact IDs.
 - customer_praise / customer_complaints: 0-4 items each, ONLY from reviews, community or survey facts (what real users
@@ -102,13 +110,19 @@ def _num_in_facts(value: float, facts) -> bool:
     return any(abs(n - value) <= max(0.51, 0.02 * value) or abs(n / 12 - value) <= max(0.51, 0.02 * value) for n in nums)
 
 
+# Complaint wording that never describes a strength ("users report call drops", "engine is mediocre").
+_COMPLAINT = re.compile(r"\b(complain\w*|criticis\w*|mediocre|lagging|jerky|hit or miss|call drops|outages?|"
+                        r"users? report (?:issues|problems|bugs)|report(?:s|ed)? (?:issues|problems) with|steep learning)\b",
+                        re.I)
+
+
 class DataAnalyst(Agent):
     key = "data_analyst"
 
     async def build_profile(self, subject, facts, is_target: bool) -> CompetitorProfile:
         allowed = {f.id for f in facts}
         by_id = {f.id: f for f in facts}
-        lines = "\n".join(fact_line(f) for f in sorted(facts, key=lambda f: (f.dimension, -f.confidence))[:70])
+        lines = "\n".join(fact_line(f) for f in sorted(facts, key=lambda f: (f.dimension, -f.confidence))[:90])
         user = (f"SUBJECT: {subject.name} ({'the client - baseline profile' if is_target else subject.category + ' competitor'})"
                 f" - {subject.website or ''}\nClient: {self.ctx.brief.target}\n\nVERIFIED FACTS:\n{lines or '(none)'}")
         prof = CompetitorProfile(name=subject.name, website=subject.website,
@@ -116,7 +130,13 @@ class DataAnalyst(Agent):
         if not facts:
             prof.summary = "Insufficient verified information was found for this company."
             return prof
-        out, resp = await self.ask(ProfileOut, user, rules=PROFILE_RULES, temperature=0.1)
+        def check(o: ProfileOut) -> list[str]:
+            wrong = [x.text for x in o.strengths if _COMPLAINT.search(x.text)]
+            return [f"these describe problems, so they belong in weaknesses, not strengths: {'; '.join(wrong[:3])}"] \
+                if wrong else []
+
+        out, resp = await self.ask(ProfileOut, user, rules=PROFILE_RULES, temperature=0.1, validator=check,
+                                   max_attempts=2)
         self.ctx.artifact_producers[f"profile:{subject.name}"] = (self.profile.role or "", resp.model_id)
         tiers = []
         for t in out.pricing_tiers[:8]:
@@ -137,10 +157,10 @@ class DataAnalyst(Agent):
                                      billing=t.billing, per_seat=t.per_seat, highlights=t.highlights[:5], fact_ids=ids))
         prof.summary = out.summary.strip()
         prof.founded, prof.headquarters, prof.headcount, prof.funding = out.founded, out.headquarters, out.headcount, out.funding
-        prof.target_customers, prof.products = out.target_customers[:8], out.products[:8]
+        prof.target_customers, prof.products = out.target_customers[:8], [x.strip()[:120] for x in out.products[:10] if x.strip()]
         prof.key_features, prof.pricing_model, prof.pricing = out.key_features[:12], out.pricing_model, tiers
-        prof.strengths = to_insights(out.strengths[:5], allowed, by_id)
-        prof.weaknesses = to_insights(out.weaknesses[:5], allowed, by_id)
+        prof.strengths = to_insights(out.strengths[:6], allowed, by_id)
+        prof.weaknesses = to_insights(out.weaknesses[:6], allowed, by_id)
         prof.recent_moves = to_insights(out.recent_moves[:5], allowed, by_id)
         prof.customer_praise = [i for i in to_insights(out.customer_praise[:4], allowed, by_id) if not i.inferred]
         prof.customer_complaints = [i for i in to_insights(out.customer_complaints[:4], allowed, by_id) if not i.inferred]
@@ -231,10 +251,11 @@ class MarketOut(LLMModel):
     recommendations: list[RecOut] = []
 
 
-MARKET_RULES = """- summary: <= 80 words. What is changing in this market and what it means for the client - concrete, with names.
-- trends: 3-5 changes happening NOW, each naming who is doing it and when, with numbers where the facts give them.
-- white_space: 2-4 specific gaps buyers complain about that no competitor serves well (cite the complaint facts).
-- recommendations: 4-6 concrete moves for the client. Each title starts with a verb and names the target (a competitor,
+MARKET_RULES = """- summary: two short paragraphs separated by a blank line, 120-180 words in total. What is changing in this
+  market (who is doing what, with numbers and dates) and what it means for the client - concrete, with names.
+- trends: 4-6 changes happening NOW, each naming who is doing it and when, with numbers where the facts give them.
+- white_space: 3-5 specific gaps buyers complain about that no competitor serves well (cite the complaint facts).
+- recommendations: 5-7 concrete moves for the client. Each title starts with a verb and names the target (a competitor,
   segment, plan or feature), e.g. "Offer a 30-day migration credit to Airtable Business customers". rationale = the
   evidence in one or two sentences with numbers. first_step = something a team can start this week. owner = one team.
   timeframe: now (0-30 days), next (30-90 days) or later (90+ days). metric = how to tell it worked. Cite fact IDs.
@@ -372,8 +393,8 @@ class StrategyAnalyst(Agent):
         allowed = {f.id for f in facts}
         by_id = {f.id: f for f in facts}
         b = self.ctx.brief
-        user = (f"CLIENT: {b.target} - {b.target_description or self.ctx.target_kind}. Client questions: "
-                f"{'; '.join(b.questions) or 'none'}.\n\nPROFILES:\n" + "\n".join(profile_digest(p) for p in profiles)
+        user = (f"CLIENT: {b.target} - {b.target_description or self.ctx.target_kind}.\n{client_block(b, focus=False)}"
+                f"\n\nPROFILES:\n" + "\n".join(profile_digest(p) for p in profiles)
                 + "\n\nKEY FACTS:\n" + self._facts_block(facts, 60)
                 + (f"\n\nREVIEWER FEEDBACK TO ADDRESS:\n{feedback}" if feedback else "")
                 + f"\n\nProduce the market read-out and an action plan for {b.target}.")
@@ -383,7 +404,7 @@ class StrategyAnalyst(Agent):
             problems = []
             recs = o.recommendations
             if len(recs) < 3:
-                problems.append("give 4-6 recommendations")
+                problems.append("give 5-7 recommendations")
             vague = [r.title for r in recs if not has_specifics(f"{r.title} {r.rationale}", names)]
             if vague:
                 problems.append("make these specific (name a competitor/segment/number): " + "; ".join(vague[:3]))
@@ -396,14 +417,14 @@ class StrategyAnalyst(Agent):
 
         out, resp = await self.ask(MarketOut, user, rules=MARKET_RULES, temperature=0.3, validator=check, max_attempts=2)
         self.ctx.artifact_producers["market"] = (self.profile.role or "", resp.model_id)
-        market = MarketAnalysis(summary=out.summary.strip(), trends=to_insights(out.trends[:5], allowed, by_id),
+        market = MarketAnalysis(summary=out.summary.strip(), trends=to_insights(out.trends[:6], allowed, by_id),
                                 white_space=to_insights(out.white_space[:5], allowed, by_id))
         recs = [Recommendation(title=r.title[:140], rationale=r.rationale[:600], priority=r.priority,
                                impact=int(max(1, min(5, r.impact))), effort=int(max(1, min(5, r.effort))),
                                fact_ids=valid_ids(r.fact_ids, allowed), first_step=r.first_step.strip()[:300],
                                owner=r.owner.strip()[:40], timeframe=r.timeframe, metric=r.metric.strip()[:200],
                                competitors=[n for n in names if any(n.lower() in c.lower() for c in r.competitors)])
-                for r in out.recommendations[:6]]
+                for r in out.recommendations[:7]]
         order = {"now": 0, "next": 1, "later": 2}
         recs.sort(key=lambda r: (order[r.timeframe], {"high": 0, "medium": 1, "low": 2}[r.priority]))
         self.emit("done", f"Market analysis: {len(market.trends)} trends, {len(recs)} recommendations", model=resp.signature)

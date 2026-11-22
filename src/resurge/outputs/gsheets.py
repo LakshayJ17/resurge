@@ -6,7 +6,7 @@ Configuration (environment variables):
 * ``GOOGLE_SHEETS_SHARE_WITH``   – e-mail address to share the sheet with as writer
 * ``GOOGLE_DRIVE_FOLDER_ID``     – Drive folder to create the spreadsheet in
 
-The spreadsheet gets one worksheet per shared table (same columns as the XLSX).
+The spreadsheet gets one worksheet per shared table from ``tables.build_tables``.
 Values are written with ``valueInputOption=RAW`` only, so Sheets stores every
 string as literal text and never parses untrusted content as a formula.
 It is written with a constant number of API calls regardless of size: create,

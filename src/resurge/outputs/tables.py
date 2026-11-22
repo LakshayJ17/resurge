@@ -1,9 +1,8 @@
 """Report -> named tables, plus small formatting helpers shared by every builder.
 
-The XLSX workbook, the Google Sheet and the CSV exports are all rendered from
-:func:`build_tables`, so the three stay column-for-column consistent. The
-formatting helpers (``clip``, ``pct``, ``pretty_dimension`` ...) are reused by the
-deck, HTML and Markdown builders so numbers and labels read the same everywhere.
+The Google Sheet is rendered from :func:`build_tables`. The formatting helpers
+(``clip``, ``pct``, ``pretty_dimension`` ...) are reused by the deck, PDF, HTML
+and Markdown builders so numbers and labels read the same everywhere.
 
 Everything here is pure: no I/O, no third-party imports, and every function
 tolerates a report whose optional sections are empty.
@@ -42,7 +41,7 @@ PRIORITY_RANK: dict[str, int] = {"high": 0, "medium": 1, "low": 2}
 # Text helpers
 # --------------------------------------------------------------------------- #
 # C0 controls (except \t \n \r), DEL, lone surrogates and non-characters are all
-# invalid in XML (PPTX/XLSX) and useless in HTML.
+# invalid in XML (PPTX) and useless in HTML.
 _INVALID_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ud800-\udfff￾￿]")
 _WHITESPACE = re.compile(r"\s+")
 _PARENTHETICAL = re.compile(r"\s*\(.*?\)\s*")
@@ -124,14 +123,9 @@ def slugify(value: object, fallback: str = "item") -> str:
 # Injection defences shared by every output format
 # --------------------------------------------------------------------------- #
 # All report text ultimately comes from untrusted web pages via LLMs, so every
-# builder routes links through ``safe_url`` and spreadsheet cells through the
-# formula guards below.
+# builder routes links through ``safe_url``. (The Google Sheet is written with
+# valueInputOption=RAW, so cell text is never parsed as a formula.)
 _URL_UNSAFE = re.compile(r'[\s"<>\\^`{|}]')
-
-# Leading characters that make Excel, LibreOffice or Google Sheets evaluate a
-# cell (OWASP "CSV injection"), including the full-width forms.
-FORMULA_TRIGGERS: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r", "＝", "＋", "－", "＠")
-
 
 def safe_url(value: object) -> str | None:
     """Return an absolute http(s) URL that is safe to use as a link target, else ``None``.
@@ -160,19 +154,6 @@ def domain_of(url: str) -> str:
     except ValueError:
         return ""
     return host.removeprefix("www.")
-
-
-def is_formula_like(value: object) -> bool:
-    """True for *text* a spreadsheet could evaluate as a formula (numbers never are)."""
-    return isinstance(value, str) and value.startswith(FORMULA_TRIGGERS)
-
-
-def escape_formula(value: Cell) -> Cell:
-    """OWASP CSV-injection defence: prefix formula-like text with a single quote.
-
-    Only strings are touched; numbers, including negative ones, pass through.
-    """
-    return "'" + value if is_formula_like(value) else value
 
 
 # --------------------------------------------------------------------------- #
@@ -315,6 +296,28 @@ def risk_score(risk: Risk) -> int:
 def report_title(report: ResearchReport) -> str:
     """Report title, falling back to a title built from the brief."""
     return one_line(report.title) or f"Competitive intelligence: {target_name(report)}"
+
+
+_CODE = r"F-(?:[0-9a-fA-F]{6,8}|R\d{1,2})"
+_CODES = re.compile(rf"\s*[\(\[]\s*{_CODE}(?:\s*[,;]\s*{_CODE})*\s*[\)\]]|\s*\b{_CODE}\b(?:\s*[,;]\s*{_CODE}\b)*"
+                    r"|\s*[\(\[]F-[0-9a-fA-F]{0,8}(?:\.\.\.|…)[\)\]]")  # a code the model cut short: "[F-c...]"
+
+
+def strip_codes(text: str) -> str:
+    """'Trusted by 30,000 sellers [F-e456aa03]' -> 'Trusted by 30,000 sellers' (citations are shown as links)."""
+    return _CODES.sub("", text)
+
+
+def display_name(name: str) -> str:
+    """'swiggy' -> 'Swiggy'; names with any capital ('eBay', 'IKEA') stay as written."""
+    name = one_line(name)
+    return name[:1].upper() + name[1:] if name and name == name.lower() else name
+
+
+def price_text(value: object) -> str:
+    """A tier's price as written, or "Not listed" when the model left it empty or wrote null."""
+    text = one_line(value)
+    return "Not listed" if not text or text.lower() in ("null", "none", "n/a", "unknown", "-", "—") else text
 
 
 def target_name(report: ResearchReport) -> str:

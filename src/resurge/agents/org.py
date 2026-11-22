@@ -65,7 +65,7 @@ ORG: dict[str, AgentProfile] = {p.key: p for p in [
     AgentProfile("visualization", "Visualization Designer", COMMS, None,
                  "Turns structured findings into charts (pricing, features, positioning, risk, coverage)."),
     AgentProfile("publisher", "Publishing Desk", COMMS, None,
-                 "Ships the deck (PPTX), workbook (XLSX), HTML/Markdown report, JSON/CSV, Google Sheets, alerts."),
+                 "Ships the report page, PDF, slide deck (PPTX), Markdown, JSON, Google Sheets and alerts."),
     AgentProfile("reflector", "Retrospective Analyst", LEARNING, "reflector",
                  "Turns validator feedback and run telemetry into reusable lessons (ACE reflector)."),
     AgentProfile("curator", "Playbook Curator", LEARNING, None,

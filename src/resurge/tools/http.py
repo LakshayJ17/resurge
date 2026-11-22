@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import asyncio
 import email.utils
+import ipaddress
+import socket
 import json
 import logging
 import os
@@ -116,6 +118,57 @@ def origin_of(url: str) -> str:
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
 
 
+# --------------------------------------------------------------------------- #
+# SSRF guard: page fetches may only reach the public internet
+# --------------------------------------------------------------------------- #
+FETCH_PORTS = frozenset({80, 443, 8080, 8443})
+
+
+class BlockedAddressError(httpx.RequestError):
+    """A page fetch (or one of its redirects) pointed at a non-public address: loopback, private networks, link-local
+    cloud metadata (169.254.169.254), carrier-grade NAT, multicast or reserved ranges, or an unusual port."""
+
+
+def is_public_ip(ip: str) -> bool:
+    addr = ipaddress.ip_address(ip.split("%")[0])
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return addr.is_global and not addr.is_multicast
+
+
+async def assert_public_url(url: httpx.URL) -> None:
+    """Raise :class:`BlockedAddressError` unless every address the host resolves to is public (checked per hop)."""
+    if os.getenv("RESURGE_ALLOW_PRIVATE_FETCH", "0") == "1":  # local development against a test server only
+        return
+    if url.scheme not in ("http", "https"):
+        raise BlockedAddressError(f"refusing non-web scheme {url.scheme!r}")
+    port = url.port or (443 if url.scheme == "https" else 80)
+    if port not in FETCH_PORTS:
+        raise BlockedAddressError(f"refusing port {port}")
+    host = (url.host or "").strip("[]")
+    if not host:
+        raise BlockedAddressError("missing host")
+    try:
+        ips = [host] if _is_ip_literal(host) else sorted({info[4][0] for info in await asyncio.get_running_loop()
+                                                          .getaddrinfo(host, port, type=socket.SOCK_STREAM)})
+    except socket.gaierror as exc:
+        raise httpx.ConnectError(f"could not resolve {host}") from exc
+    if not ips or not all(is_public_ip(ip) for ip in ips):
+        raise BlockedAddressError(f"refusing non-public address for {host}")
+
+
+def _is_ip_literal(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host.split("%")[0])
+        return True
+    except ValueError:
+        return False
+
+
+async def _guard_hook(request: httpx.Request) -> None:
+    await assert_public_url(request.url)
+
+
 def make_client(
     *,
     profile: Literal["page", "api"] = "page",
@@ -135,9 +188,13 @@ def make_client(
         timeout = DEFAULT_TIMEOUT
     elif not isinstance(timeout, httpx.Timeout):
         timeout = httpx.Timeout(float(timeout), connect=min(10.0, float(timeout)))
+    # Page fetches go to addresses found on the open web (search results, redirects): guard every hop against SSRF.
+    # API clients talk to fixed, configured hosts (some legitimately local, e.g. SearXNG). Injected test transports
+    # never touch the network.
+    hooks = {"request": [_guard_hook]} if profile == "page" and transport is None else {}
     return httpx.AsyncClient(
         headers=base, timeout=timeout, follow_redirects=follow_redirects, max_redirects=max_redirects,
-        limits=httpx.Limits(max_connections=32, max_keepalive_connections=16), transport=transport,
+        limits=httpx.Limits(max_connections=32, max_keepalive_connections=16), transport=transport, event_hooks=hooks,
     )
 
 

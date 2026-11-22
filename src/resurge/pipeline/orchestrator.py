@@ -376,6 +376,12 @@ class ResurgeCompany:
         # 11 Assemble ----------------------------------------------------------------------
         report = self._assemble(ctx, ordered, matrix, h2h, positioning, market, recs, risks, battlecards,
                                 exec_summary, t_start)
+        from ..guardrails import guard_report
+
+        fixed = guard_report(report)  # output guardrails: secrets, personal data, instruction residue, script links
+        if fixed:
+            ctx.events.emit(RISK, ORG["security_officer"].title, "warn", "Output guardrails cleaned the report: "
+                            + ", ".join(f"{k.replace('_', ' ')} {v}" for k, v in sorted(fixed.items())))
         final_dir = Path(out_dir) if out_dir else (self.settings.reports_dir / ctx.run_id)
         artifacts: dict[str, Any] = {}
         if publish:

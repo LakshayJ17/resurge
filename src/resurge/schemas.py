@@ -2,7 +2,7 @@
 
 Everything an agent produces is one of these Pydantic models, so every hand-off
 between teams is schema-validated. The final deliverable is ``ResearchReport``;
-every output builder (deck, workbook, HTML, Markdown, Sheets) renders from it.
+every output builder (deck, PDF, HTML, Markdown, Sheets) renders from it.
 
 Design rule: *no source, no claim*. Facts carry evidence IDs + an exact quote;
 analysis items (``Insight``) carry the fact IDs they are derived from.
@@ -444,12 +444,36 @@ class Lesson(BaseModel):
     source_run: str | None = None
 
 
+class QuestionAnswer(BaseModel):
+    """The answer to one question the client typed in the brief, from verified facts only."""
+
+    question: str
+    answer: str = ""
+    fact_ids: list[str] = Field(default_factory=list)
+    confidence: float | None = None
+    answered: bool = True  # False when the verified research does not answer it
+
+
 class ExecutiveSummary(BaseModel):
     headline: str = ""
     summary: str = ""
     key_findings: list[Insight] = Field(default_factory=list)
     top_threats: list[str] = Field(default_factory=list)
     top_opportunities: list[str] = Field(default_factory=list)
+    answers: list[QuestionAnswer] = Field(default_factory=list)  # one per brief question, in order
+    scope: str = ""  # what the report compares and why (e.g. which businesses of a group the evidence covers)
+
+
+def best_battlecards(cards: list["Battlecard"]) -> list["Battlecard"]:
+    """One card per competitor, the most complete one (a model sometimes repeats a competitor with an empty card)."""
+    def size(c: "Battlecard") -> int:
+        return (len(c.their_strengths) + len(c.their_weaknesses) + len(c.why_we_win) + len(c.landmines)
+                + len(c.objections) + bool(c.one_liner) + bool(c.pricing_talk_track))
+    best: dict[str, Battlecard] = {}
+    for c in cards:
+        if c.competitor not in best or size(c) > size(best[c.competitor]):
+            best[c.competitor] = c
+    return list(best.values())
 
 
 # --------------------------------------------------------------------------- #

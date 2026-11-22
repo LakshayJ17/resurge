@@ -19,6 +19,7 @@ from pathlib import Path
 
 from resurge.outputs.charts import CELL_STATUS, CHART_TITLES, FACT_STATUS
 from resurge.outputs.tables import (
+    target_name,
     RISK_CATEGORY_LABELS,
     clamp_int,
     competitor_names,
@@ -45,6 +46,7 @@ from resurge.outputs.tables import (
     sorted_sources,
     threat_label,
 )
+from resurge.outputs.stats import by_the_numbers
 from resurge.schemas import Fact, Insight, ResearchReport
 
 _MD_SPECIAL = re.compile(r"([\\`*_\[\]|~])")
@@ -169,19 +171,54 @@ class _Writer:
     def toc(self, sections: list[str]) -> None:
         self.add("## Contents", "\n".join(f"{i}. [{s}](#{github_slug(s)})" for i, s in enumerate(sections, 1)))
 
+    def about(self) -> bool:
+        r, es = self.r, self.r.executive_summary
+        tp = next((p for p in r.profiles if p.category == "target"), None)
+        intro = (tp.summary if tp and tp.summary else "") or r.brief.target_description or ""
+        if not (intro or es.scope):
+            return False
+        self.add(f"## About {md_text(target_name(r))}")
+        if intro:
+            self.add(*(md_text(x) for x in intro.split("\n\n") if x.strip()))
+        if tp:
+            pairs = [("Website", tp.website), ("Industry", r.brief.industry), ("Founded", tp.founded),
+                     ("Headquarters", tp.headquarters), ("Size", tp.headcount), ("Funding / ownership", tp.funding)]
+            rows = [[k, md_text(v)] for k, v in pairs if one_line(v)]
+            if rows:
+                self.add(md_table(["", ""], rows, ["l", "l"]))
+            if tp.products:
+                self.add("### Main businesses and products", self.bullets(tp.products))
+        if es.scope:
+            self.add(f"> **What this report covers.** {md_text(es.scope)}")
+        return True
+
     def summary(self) -> None:
         es = self.r.executive_summary
         self.add("## Executive summary")
         if es.summary:
-            self.add(md_text(es.summary))
+            self.add(*(md_text(x) for x in es.summary.split("\n\n") if x.strip()))
         if es.key_findings:
             self.add("### Key findings", self.insights(es.key_findings))
         if es.top_threats:
             self.add("### Top threats", self.bullets(es.top_threats))
         if es.top_opportunities:
             self.add("### Top opportunities", self.bullets(es.top_opportunities))
+        if es.answers:
+            self.add("### Answers to your questions", "\n\n".join(
+                f"**{md_text(a.question)}**\n{md_text(a.answer)}{self.cite(a.fact_ids)}"
+                + ("" if a.answered else " *(not answered by the research)*") for a in es.answers))
         if not (es.headline or es.summary or es.key_findings or es.top_threats or es.top_opportunities):
             self.add("_No executive summary was produced for this run._")
+
+    def numbers(self) -> bool:
+        stats = by_the_numbers(self.r)
+        if not stats:
+            return False
+        self.add("## By the numbers",
+                 md_table(["", "Figure", "Detail"],
+                          [[f"**{md_text(st.value)}**", md_text(st.label), md_text(st.detail) or "—"] for st in stats],
+                          ["r", "l", "l"]))
+        return True
 
     def landscape(self) -> bool:
         listed = {c.name.casefold(): c for c in self.r.competitors}
@@ -218,7 +255,7 @@ class _Writer:
                 row.append(f"{style.glyph} {style.label}{note}{self.cite(cell.fact_ids) if cell else ''}")
             rows.append(row)
         legend = " · ".join(f"{s.glyph} {s.label}" for s in CELL_STATUS.values())
-        self.add("## Feature comparison", self.chart("feature_matrix"),
+        self.add("## Feature comparison", self.chart("feature_breadth"), self.chart("feature_matrix"),
                  md_table(["Feature", *(md_text(c) for c in companies)], rows), f"*Legend: {legend}*")
         return True
 
@@ -234,7 +271,7 @@ class _Writer:
             return False
         self.add("## Pricing", self.chart("pricing"),
                  md_table(["Competitor", "Tier", "Price", "USD / month", "Billing", "Highlights"], rows,
-                          ["l", "l", "l", "r", "l", "l"]))
+                          ["l", "l", "l", "r", "l", "l"]), self.chart("cost_curve"))
         return True
 
     def positioning(self) -> bool:
@@ -251,7 +288,7 @@ class _Writer:
     def profiles(self) -> bool:
         if not self.r.profiles:
             return False
-        self.add("## Competitor profiles")
+        self.add("## Competitor profiles", self.chart("voice"))
         for p in self.r.profiles:
             self.add(f"### {md_text(p.name)}")
             if p.summary:
@@ -314,6 +351,8 @@ class _Writer:
             self.add(md_text(m.summary))
         if m.trends:
             self.add("### Key trends", self.insights(m.trends))
+        if "timeline" in self.charts:
+            self.add("### Competitor moves over time", self.chart("timeline"))
         if m.five_forces:
             rows = []
             for f in m.five_forces:
@@ -337,7 +376,7 @@ class _Writer:
                      md_text(r.first_step) or "—", md_text(r.owner) or "—", md_text(r.metric) or "—",
                      r.priority.title(), md_text(r.rationale)]
                     for i, r in enumerate(recs, 1)]
-            self.add("### Action plan",
+            self.add("### Action plan", self.chart("impact_effort"),
                      md_table(["#", "Move", "When", "First step", "Owner", "Success metric", "Priority", "Why"], rows,
                               ["r", "l", "l", "l", "l", "l", "l", "l"]))
         return True
@@ -394,7 +433,7 @@ class _Writer:
                           [[m.label, m.display, md_text(m.note)] for m in key_metrics(r)], ["l", "r", "l"]))
         if r.methodology:
             self.add(md_text(r.methodology))
-        self.add(self.chart("verification_funnel"), self.chart("coverage"))
+        self.add(self.chart("verification_funnel"), self.chart("coverage"), self.chart("evidence_mix"))
         if r.reviews:
             rows = [[f"{md_text(one_line(v.stage).title())} #{v.attempt}", md_text(v.reviewer), f"{v.score:.1f}",
                      v.verdict.title(), md_text(join(v.issues))] for v in r.reviews]
@@ -457,8 +496,13 @@ class _Writer:
     def render(self) -> str:
         self.header()
         body_start = len(self.blocks)
-        sections: list[str] = ["Executive summary"]
+        sections: list[str] = []
+        if self.about():
+            sections.append(f"About {target_name(self.r)}")
+        sections.append("Executive summary")
         self.summary()
+        if self.numbers():
+            sections.append("By the numbers")
         for title, step in (
             ("Competitive landscape", self.landscape),
             ("Feature comparison", self.features),

@@ -11,7 +11,7 @@ Endpoints
   GET  /api/providers            provider/key status (no network calls)
   GET  /api/runs/{id}/chat/status  RAG index status of a run {indexed, chunks, backend}
   POST /api/runs/{id}/chat       ask a question about a finished run (RAG; indexes lazily on first question)
-  GET  /files/{id}/{name}        deliverables (report.html, deck.pptx, workbook.xlsx, ...)
+  GET  /files/{id}/{name}        deliverables (report.html, report.pdf, report.pptx, ...)
 """
 
 from __future__ import annotations
@@ -206,10 +206,16 @@ def create_app() -> FastAPI:
 
         _same_origin(request)
         _known_run(run_id)
+        from ..input_guard import INJECTION_REPLY, screen_chat
+
+        ok, history = screen_chat(req.question, [t.model_dump() for t in req.history])
+        if not ok:
+            return JSONResponse({"answer": INJECTION_REPLY, "citations": [], "confidence": "low", "followups": [],
+                                 "grounded": False, "backend": "screen"}, headers={"Cache-Control": "no-store"})
         if not rag.available():
             raise HTTPException(503, f"RAG chat is not installed: {rag.INSTALL_HINT}")
         try:
-            out = await rag.ask(settings, run_id, req.question, [t.model_dump() for t in req.history])
+            out = await rag.ask(settings, run_id, req.question, history)
         except rag.RunNotFound as e:
             raise HTTPException(409, "this run has no finished report to chat with yet") from e
         except rag.RagUnavailable as e:

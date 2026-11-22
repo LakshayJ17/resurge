@@ -25,6 +25,7 @@ from markupsafe import Markup
 
 from resurge.outputs.charts import CELL_STATUS, CHART_TITLES, FACT_STATUS, color_for, entity_colors
 from resurge.outputs.tables import (
+    USABLE_STATUSES,
     QUALITY_TILE_KEYS,
     RISK_CATEGORY_LABELS,
     clamp_int,
@@ -32,6 +33,7 @@ from resurge.outputs.tables import (
     compact_number,
     competitor_names,
     departments,
+    display_name,
     domain_of,
     fact_index,
     facts_table,
@@ -40,10 +42,12 @@ from resurge.outputs.tables import (
     fmt_int,
     fmt_usd,
     insight_confidence,
+    is_target,
     matrix_axes,
     metrics_by_key,
     one_line,
     pct,
+    price_text,
     pretty_dimension,
     report_title,
     risk_band,
@@ -54,10 +58,20 @@ from resurge.outputs.tables import (
     sorted_recommendations,
     sorted_risks,
     sorted_sources,
+    strip_codes,
     target_name,
     threat_label,
+    verification_stats,
 )
-from resurge.schemas import ResearchReport
+from resurge.outputs.stats import (
+    SOURCE_TYPE_LABELS,
+    by_the_numbers,
+    evidence_by_company,
+    feature_counts,
+    quadrant,
+    voice_of_customer,
+)
+from resurge.schemas import ResearchReport, best_battlecards
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "report.html.j2"
@@ -95,30 +109,33 @@ CONTENT_SECURITY_POLICY = (
 )
 
 SECTION_LABELS: dict[str, str] = {
-    "summary": "Executive summary",
-    "landscape": "Competitive landscape",
-    "features": "Feature comparison",
+    "summary": "Summary",
+    "numbers": "By the numbers",
+    "landscape": "Landscape",
+    "features": "Features",
     "pricing": "Pricing",
     "positioning": "Positioning",
-    "profiles": "Competitor profiles",
-    "swot": "SWOT analysis",
-    "market": "Market dynamics",
-    "recommendations": "White space & recommendations",
-    "risks": "Risk register",
+    "profiles": "Competitors",
+    "headtohead": "Head to head",
+    "swot": "SWOT",
+    "market": "Market",
+    "recommendations": "Action plan",
+    "risks": "Risks",
     "battlecards": "Battlecards",
-    "changes": "Changes since last run",
-    "quality": "Methodology & quality",
+    "changes": "Changes",
+    "quality": "How it was made",
     "sources": "Sources",
-    "facts": "Facts appendix",
+    "facts": "Evidence",
 }
 
 
-def anchor(fact_id: str) -> str:
-    """HTML id for a fact (``F-1a2b3c4d`` stays as is; anything odd is slugified)."""
+def anchor(fact_id: str) -> Markup:
+    """HTML id for a fact (``F-1a2b3c4d`` stays as is; anything odd is slugified). Only letters, digits, - and _,
+    so it is safe as markup."""
     text = one_line(fact_id)
     if text and all(ch.isalnum() or ch in "-_" for ch in text):
-        return text
-    return "fact-" + slugify(text, "unknown")
+        return Markup(text)
+    return Markup("fact-" + slugify(text, "unknown"))
 
 
 def conf_class(value: float | None) -> str:
@@ -140,6 +157,9 @@ def _environment() -> Environment:
         undefined=StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
+        # Citation codes the models wrote into their text ("[F-1a2b3c4d]") never reach the page: citations are the
+        # numbered links. Markup (ids, anchors, chart data) passes through untouched.
+        finalize=lambda value: strip_codes(value) if isinstance(value, str) and not isinstance(value, Markup) else value,
     )
     env.filters.update(
         pct=pct,
@@ -153,6 +173,7 @@ def _environment() -> Environment:
         anchor=anchor,
         conf_class=conf_class,
         threat_label=threat_label,
+        price=price_text,
     )
     return env
 
@@ -168,7 +189,7 @@ def _context(report: ResearchReport, charts: Mapping[str, Path | str] | None) ->
         return insight_confidence(insight, facts)
 
     chart_uris = {
-        name: _data_uri(Path(path)) for name, path in (charts or {}).items() if path and Path(path).is_file()
+        name: Markup(_data_uri(Path(path))) for name, path in (charts or {}).items() if path and Path(path).is_file()
     }
 
     listed = {c.name.casefold(): c for c in report.competitors}
@@ -237,15 +258,23 @@ def _context(report: ResearchReport, charts: Mapping[str, Path | str] | None) ->
         if str(fid) in facts
     ]
 
+    cite_no = {row["f"].id: n for n, row in enumerate(fact_rows, start=1)}
+    graphics = _graphics(report, facts, color)
+    numbers = by_the_numbers(report)
+    target = display_name(target_name(report))
+    names = [display_name(n) for n in competitor_names(report)]
+
     es = report.executive_summary
     market = report.market
     sections = {
         "summary": True,
+        "numbers": bool(numbers),
         "landscape": bool(landscape),
         "features": bool(features and companies),
         "pricing": any(p.pricing for p in report.profiles),
         "positioning": len(report.positioning.points) >= 1,
         "profiles": bool(report.profiles),
+        "headtohead": bool(report.head_to_head),
         "swot": bool(report.swots),
         "market": bool(market.summary or market.trends or market.five_forces),
         "recommendations": bool(report.recommendations or market.white_space),
@@ -261,8 +290,12 @@ def _context(report: ResearchReport, charts: Mapping[str, Path | str] | None) ->
         "inline_script": Markup(INLINE_SCRIPT),
         "r": report,
         "es": es,
-        "title": report_title(report),
-        "target": target_name(report),
+        "title": f"{target}: competitor report",
+        "target": target,
+        "compared": (", ".join(names[:-1]) + f" and {names[-1]}") if len(names) > 1 else "".join(names),
+        "numbers": numbers,
+        "cite_no": cite_no,
+        "display": display_name,
         "date": fmt_date(report.created_at),
         "generated": fmt_datetime(report.created_at),
         "charts": chart_uris,
@@ -278,6 +311,8 @@ def _context(report: ResearchReport, charts: Mapping[str, Path | str] | None) ->
         "profiles": [{"p": p, "anchor": "profile-" + slugify(p.name), "color": color(p.name)}
                      for p in report.profiles],
         "recommendations": sorted_recommendations(report),
+        "battlecards": best_battlecards(report.battlecards),
+        **graphics,
         "risks": risks,
         "model_usage": sorted(report.metrics.model_usage, key=lambda u: -u.calls),
         "departments": departments(report),
@@ -287,6 +322,89 @@ def _context(report: ResearchReport, charts: Mapping[str, Path | str] | None) ->
         "toc": [(key, SECTION_LABELS[key]) for key, show in sections.items() if show],
         "show": sections,
     }
+
+
+SOURCE_ORDER = ("official", "news", "review", "community", "reference", "code", "social", "other")
+TIMEFRAMES = (("now", "Now", "next 30 days"), ("next", "Next", "30 to 90 days"), ("later", "Later", "after 90 days"))
+
+
+def _share(part: float, whole: float) -> float:
+    return round(100 * part / whole, 1) if whole else 0.0
+
+
+def _graphics(report: ResearchReport, facts: Mapping[str, Any], color: Any) -> dict[str, Any]:
+    """Numbers for the page's drawn graphics: scorecards, the roadmap, the pipeline and the split bars."""
+    from resurge.outputs.site import price_summary, timeline  # site imports the chart module this one shares
+
+    caps = {name.casefold(): c for name, c in feature_counts(report)}
+    n_caps = len(report.feature_matrix.features)
+    evidence = {name.casefold(): c for name, c in evidence_by_company(report)}
+    most_facts = max((sum(c.values()) for c in evidence.values()), default=0)
+    voice = {name.casefold(): (praise, complaints) for name, praise, complaints, _ in voice_of_customer(report)}
+    most_voice = max((max(v) for v in voice.values()), default=0)
+    moves = timeline(report, facts)
+    usable = [f for f in report.facts if f.status in USABLE_STATUSES]
+
+    ordered = sorted(report.profiles, key=lambda p: (not is_target(p.name, report), -(p.threat_level or 0)))
+    scorecard = []
+    for p in ordered:
+        key = p.name.casefold()
+        cap = caps.get(key)
+        ps = price_summary(p)
+        if ps.entry and ps.entry.monthly:
+            cheapest = f"{fmt_usd(ps.entry.monthly)}/mo"
+        else:
+            cheapest = "Free plan" if ps.free else "Not listed" if p.pricing else ""
+        total = sum(evidence.get(key, {}).values())
+        praise, complaints = voice.get(key, (0, 0))
+        latest = next((m for m in moves if m.competitor == p.name and m.sort[0]), None)
+        topics: dict[str, int] = {}
+        for f in usable:
+            if f.competitor.casefold() == key:
+                topics[pretty_dimension(f.dimension)] = topics.get(pretty_dimension(f.dimension), 0) + 1
+        top_topic = max(topics.values(), default=0)
+        scorecard.append({
+            "name": display_name(p.name), "anchor": "profile-" + slugify(p.name), "color": color(p.name),
+            "is_target": is_target(p.name, report),
+            "threat": clamp_int(p.threat_level, 1, 5) if p.threat_level is not None else None,
+            "caps": cap["yes"] if cap else None, "caps_partial": cap["partial"] if cap else 0, "caps_total": n_caps,
+            "caps_pct": _share(cap["yes"], n_caps) if cap else 0, "caps_partial_pct": _share(cap["partial"], n_caps) if cap else 0,
+            "cheapest": cheapest,
+            "facts": total, "facts_pct": _share(total, most_facts),
+            "praise": praise, "complaints": complaints,
+            "praise_pct": _share(praise, most_voice), "complaints_pct": _share(complaints, most_voice),
+            "latest": latest.when if latest else "",
+            "topics": [(t, n, _share(n, top_topic)) for t, n in sorted(topics.items(), key=lambda kv: -kv[1])[:6]],
+        })
+
+    numbered = list(enumerate(sorted_recommendations(report), start=1))
+    lanes = [{"key": key, "title": title, "span": span,
+              "actions": [{"n": n, "r": r, "kind": quadrant(r)} for n, r in numbered if r.timeframe == key]}
+             for key, title, span in TIMEFRAMES]
+
+    head_to_head = []
+    for h in report.head_to_head:
+        they, we = len(h.they_win), len(h.we_win)
+        head_to_head.append({"h": h, "name": display_name(h.competitor), "color": color(h.competitor),
+                             "they": they, "we": we, "they_pct": _share(they, they + we)})
+
+    stats = verification_stats(report)
+    m = report.metrics
+    pipeline = [(label, value) for label, value in (
+        ("Searches run", m.searches), ("Pages read", m.pages_fetched), ("Claims extracted", stats.total),
+        ("Quote found on the page", stats.grounded), ("Verified by a second model", stats.usable)) if value]
+
+    by_type: dict[str, int] = {}
+    for s in report.sources:
+        by_type[s.source_type] = by_type.get(s.source_type, 0) + 1
+    source_split = [(k, SOURCE_TYPE_LABELS.get(k, k.title()), by_type[k], _share(by_type[k], len(report.sources)))
+                    for k in SOURCE_ORDER if by_type.get(k)]
+    status_split = [(cls, label, n, _share(n, stats.total)) for cls, label, n in (
+        ("supported", "Supported", sum(1 for f in report.facts if f.status == "supported")),
+        ("partial", "Partly supported", sum(1 for f in report.facts if f.status == "partial")),
+        ("failed", "Failed the check", stats.failed), ("pending", "Not yet checked", stats.pending)) if n]
+    return {"scorecard": scorecard, "lanes": lanes, "head_to_head": head_to_head, "pipeline": pipeline,
+            "source_split": source_split, "status_split": status_split}
 
 
 def render_html(report: ResearchReport, charts: Mapping[str, Path | str] | None = None) -> str:

@@ -112,7 +112,7 @@ def test_publish_all_builds_the_site_by_default(tmp_path: Path) -> None:
     res = publish_all(make_sample_report(), tmp_path, {"site", "pptx", "json"})
     assert Path(res["site"]).name == "index.html"
     about = (tmp_path / "site" / "about.html").read_text()
-    assert 'href="../report.pptx"' in about and 'href="../facts.csv"' in about
+    assert 'href="../report.pptx"' in about and 'href="../report.json"' in about and ".csv" not in about
 
 
 def test_seat_costs_and_price_summary() -> None:

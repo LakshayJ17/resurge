@@ -71,7 +71,7 @@ Web pages are attacker-controlled. Defences, cheapest first:
 6. **Optional ML screen.** With a Groq key, the Security & Compliance Officer asks Llama Prompt Guard 2 (a free
    prompt-injection classifier) for a second opinion on borderline chunks. That role never falls back to a general
    chat model.
-7. **Safe deliverables.** Spreadsheet formula injection is neutralised (XLSX, CSV, Google Sheets). The HTML report
+7. **Safe deliverables.** Google Sheets cells are written as raw values, so web text is never run as a formula. The HTML report
    ships a strict Content-Security-Policy, escapes all text and allows only `http(s)` links. Markdown escapes raw
    HTML. Chat notifications suppress `@everyone` / `@here`.
 

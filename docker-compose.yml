@@ -1,0 +1,45 @@
+# Resurge on a server. See docs/DEPLOY.md.
+#
+#   docker compose up -d                        app only, on http://127.0.0.1:8000 (put HTTPS in front)
+#   docker compose --profile caddy up -d        + automatic HTTPS for DOMAIN (opens ports 80 and 443)
+#   docker compose --profile tunnel up -d       + Cloudflare Tunnel (HTTPS without opening any port)
+services:
+  resurge:
+    build: .
+    image: resurge:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RESURGE_TRUST_PROXY: "1"   # the app is only reachable through Caddy or the tunnel, which set client-IP headers
+    volumes:
+      - resurge-data:/data
+    ports:
+      - "127.0.0.1:8000:8000"    # bound to localhost only: never exposed directly to the internet
+    mem_limit: 3g
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["caddy"]
+    restart: unless-stopped
+    depends_on: [resurge]
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:-}   # set in .env, e.g. resurge-yourname.duckdns.org
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    depends_on: [resurge]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}   # set in .env
+
+volumes:
+  resurge-data:
+  caddy-data:
+  caddy-config:

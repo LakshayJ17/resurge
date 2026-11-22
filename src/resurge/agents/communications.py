@@ -1,13 +1,13 @@
 """Design & Communications: Enablement Writer (battlecards) + methodology text.
 
-Charts, deck, workbook, HTML/Markdown, Sheets and alerts are produced by the
+Charts, deck, PDF, HTML/Markdown, Sheets and alerts are produced by the
 deterministic Publishing Desk in ``resurge.outputs`` from the final report.
 """
 
 from __future__ import annotations
 
 from ..llm import LLMModel
-from ..schemas import Battlecard, ObjectionHandler, ResearchReport
+from ..schemas import Battlecard, ObjectionHandler, ResearchReport, best_battlecards
 from .analysis import _match_name, profile_digest
 from .base import Agent, valid_ids
 
@@ -39,7 +39,6 @@ class EnablementWriter(Agent):
     async def battlecards(self, target_profile, competitor_profiles, facts) -> list[Battlecard]:
         ctx = self.ctx
         allowed = {f.id for f in facts}
-        names = [p.name for p in competitor_profiles]
         out_cards: list[Battlecard] = []
         us = profile_digest(target_profile, 1200) if target_profile else (
             f"== {ctx.brief.target}: {ctx.brief.target_description or 'the client'}")
@@ -57,8 +56,8 @@ class EnablementWriter(Agent):
             except Exception as e:  # noqa: BLE001
                 ctx.errors.append(f"battlecards: {e}")
                 continue
-            for bc in out.battlecards:
-                comp = _match_name(bc.competitor, names)
+            for bc in out.battlecards:  # only the competitors this call was about: models sometimes repeat earlier ones
+                comp = _match_name(bc.competitor, [p.name for p in group])
                 if not comp:
                     continue
                 out_cards.append(Battlecard(
@@ -67,7 +66,7 @@ class EnablementWriter(Agent):
                     objections=[ObjectionHandler(objection=o.objection[:200], response=o.response[:400]) for o in bc.objections[:4]],
                     pricing_talk_track=bc.pricing_talk_track[:500], fact_ids=valid_ids(bc.fact_ids, allowed)))
             self.emit("done", f"Battlecards: {', '.join(p.name for p in group)}", model=resp.signature)
-        return out_cards
+        return best_battlecards(out_cards)
 
 
 def methodology_text(report: ResearchReport, ctx) -> str:

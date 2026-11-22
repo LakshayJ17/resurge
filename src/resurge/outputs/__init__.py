@@ -20,15 +20,15 @@ from resurge.schemas import ResearchReport
 
 log = logging.getLogger(__name__)
 
-ALL_FORMATS: tuple[str, ...] = ("charts", "site", "html", "md", "pptx", "xlsx", "json", "gsheets")
+ALL_FORMATS: tuple[str, ...] = ("charts", "site", "html", "md", "pdf", "pptx", "json", "gsheets")
 DEFAULT_FORMATS: frozenset[str] = frozenset(f for f in ALL_FORMATS if f != "gsheets")
-_NEEDS_CHARTS = {"charts", "site", "html", "md", "pptx"}
+_NEEDS_CHARTS = {"charts", "site", "html", "md", "pdf", "pptx"}
 
 FILE_NAMES: dict[str, str] = {
     "html": "report.html",
     "md": "report.md",
+    "pdf": "report.pdf",
     "pptx": "report.pptx",
-    "xlsx": "report.xlsx",
 }
 
 
@@ -46,11 +46,11 @@ def build_pptx(report: ResearchReport, path: Path, charts: Mapping[str, Path | s
     return impl(report, path, charts)
 
 
-def build_xlsx(report: ResearchReport, path: Path) -> Path:
-    """Write the analyst workbook (one sheet per shared table)."""
-    from resurge.outputs.xlsx_builder import build_xlsx as impl
+def build_pdf(report: ResearchReport, path: Path, charts: Mapping[str, Path | str] | None = None) -> Path:
+    """The complete report as one PDF, with charts, contents and citations linked to the evidence."""
+    from resurge.outputs.pdf_report import build_pdf as impl
 
-    return impl(report, path)
+    return impl(report, path, charts)
 
 
 def build_html(report: ResearchReport, path: Path, charts: Mapping[str, Path | str] | None = None) -> Path:
@@ -75,7 +75,7 @@ def build_markdown(report: ResearchReport, path: Path, charts: Mapping[str, Path
 
 
 def export_json(report: ResearchReport, out_dir: Path) -> dict[str, Path]:
-    """Write ``report.json``, ``facts.csv`` and ``sources.csv``."""
+    """Write ``report.json`` (the full report, reloadable with ``ResearchReport.model_validate_json``)."""
     from resurge.outputs.json_export import export_json as impl
 
     return impl(report, out_dir)
@@ -91,7 +91,7 @@ def publish_gsheets(report: ResearchReport) -> str:
 def _normalise(formats: Iterable[str] | None) -> tuple[list[str], list[str]]:
     """(known formats in canonical order, unknown names)."""
     wanted = set(DEFAULT_FORMATS) if formats is None else {str(f).strip().lower() for f in formats}
-    aliases = {"markdown": "md", "excel": "xlsx", "ppt": "pptx", "sheets": "gsheets", "csv": "json"}
+    aliases = {"markdown": "md", "ppt": "pptx", "sheets": "gsheets"}
     wanted = {aliases.get(f, f) for f in wanted if f}
     return [f for f in ALL_FORMATS if f in wanted], sorted(wanted - set(ALL_FORMATS))
 
@@ -101,10 +101,9 @@ def publish_all(
 ) -> dict[str, Path | str]:
     """Build the requested deliverables into ``out_dir``.
 
-    ``formats`` ⊆ {"charts", "html", "md", "pptx", "xlsx", "json", "gsheets"};
-    ``None`` means everything except "gsheets". Returns ``{format: path_or_url}``
-    (plus ``facts_csv``/``sources_csv`` for "json"); a failed builder is logged
-    and reported as ``{"<fmt>_error": "<message>"}`` without stopping the rest.
+    ``formats`` ⊆ ``ALL_FORMATS``; ``None`` means everything except "gsheets".
+    Returns ``{format: path_or_url}``; a failed builder is logged and reported
+    as ``{"<fmt>_error": "<message>"}`` without stopping the rest.
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -133,10 +132,7 @@ def publish_all(
         run("charts", make_charts)
 
     def make_json() -> None:
-        paths = export_json(report, out)
-        results["json"] = paths["json"]
-        results["facts_csv"] = paths["facts_csv"]
-        results["sources_csv"] = paths["sources_csv"]
+        results["json"] = export_json(report, out)["json"]
 
     def make_gsheets() -> None:
         results["gsheets"] = publish_gsheets(report)
@@ -144,7 +140,7 @@ def publish_all(
     file_builders: dict[str, Callable[[Path], Path]] = {
         "md": lambda path: build_markdown(report, path, charts),
         "html": lambda path: build_html(report, path, charts),
-        "xlsx": lambda path: build_xlsx(report, path),
+        "pdf": lambda path: build_pdf(report, path, charts),
         "pptx": lambda path: build_pptx(report, path, charts),
     }
 
@@ -154,13 +150,13 @@ def publish_all(
 
         return action
 
-    for fmt in ("json", "md", "html", "xlsx", "pptx", "gsheets"):
+    for fmt in ("json", "md", "html", "pdf", "pptx", "gsheets"):
         if fmt in selected:
             run(fmt, make_json if fmt == "json" else make_gsheets if fmt == "gsheets" else make_file(fmt))
 
     def make_site() -> None:  # last, so it can link the other deliverables
-        labels = {"pptx": "Slide deck (.pptx)", "xlsx": "Workbook (.xlsx)", "html": "One-page print version (.html)",
-                  "md": "Markdown (.md)", "facts_csv": "All facts (.csv)", "json": "Raw data (.json)"}
+        labels = {"pdf": "Full report (.pdf)", "pptx": "Slide deck (.pptx)", "html": "One-page print version (.html)",
+                  "md": "Markdown (.md)", "json": "Raw data (.json)"}
         downloads = {label: f"../{Path(str(results[k])).name}" for k, label in labels.items()
                      if k in results and Path(str(results[k])).is_file()}
         results["site"] = build_site(report, out / "site", charts, downloads)
@@ -174,11 +170,11 @@ __all__ = [
     "ALL_FORMATS",
     "DEFAULT_FORMATS",
     "build_charts",
+    "build_pdf",
     "build_html",
     "build_site",
     "build_markdown",
     "build_pptx",
-    "build_xlsx",
     "export_json",
     "notify",
     "publish_all",

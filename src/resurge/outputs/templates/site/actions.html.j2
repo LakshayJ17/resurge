@@ -4,6 +4,7 @@
 {% block heading %}Action plan{% endblock %}
 {% block lede %}<p class="lede">{{ report.recommendations | length }} moves for {{ target }}, in the order to start them.</p>{% endblock %}
 {% block content %}
+{{ ui.fig(charts.actions, "Where to act first", "Each move by expected impact and effort, 1 to 5. Quick wins sit top left; numbers match the list below.") }}
 {% set ns = namespace(n=0) %}
 {% for key, label, span in TIMEFRAMES %}
 {% set recs = recs_by_time[key] %}

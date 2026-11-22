@@ -39,7 +39,8 @@ from resurge.outputs.charts import color_for, entity_colors
 from resurge.outputs.tables import (
     axis_name, clip, domain_of, fmt_date, fmt_usd, one_line, pct, pretty_dimension, risk_band, safe_url, slugify, threat_label,
 )
-from resurge.schemas import CompetitorProfile, Fact, PricingTier, ResearchReport
+from resurge.outputs.stats import by_the_numbers, voice_of_customer
+from resurge.schemas import CompetitorProfile, Fact, PricingTier, ResearchReport, best_battlecards
 
 TEMPLATE_DIR = Path(__file__).parent / "templates" / "site"
 SEATS = (10, 50, 200)
@@ -411,6 +412,19 @@ def build_charts(report: ResearchReport, target: str, summaries: Mapping[str, Pr
                                  sorted(by_type.items(), key=lambda kv: -kv[1])],
                                 title="Where the verified facts come from", desc="Facts by type of source",
                                 fmt=lambda v: f"{v:.0f}") if by_type else Markup("")
+    voice = sorted(voice_of_customer(report), key=lambda r: (-(r[1] - r[2]), r[0].lower()))
+    out["voice"] = sc.diverging(
+        [sc.Diverge(name, complaints, praise, highlight=is_us(name),
+                    tip=f"{name}: {praise} praise, {complaints} complaints"
+                        + (f", sentiment {score:+.1f}" if score is not None else ""))
+         for name, praise, complaints, score in voice],
+        title="What customers say", desc="Complaints and praise in verified customer sources",
+        left_name="Complaints", right_name="Praise")
+    ordered = [r for key, _, _ in TIMEFRAMES for r in report.recommendations if r.timeframe == key]
+    out["actions"] = sc.action_grid(
+        [sc.ActionMark(n, r.effort, r.impact, f"{n}. {r.title} (impact {r.impact}, effort {r.effort})")
+         for n, r in enumerate(ordered, 1)],
+        title="Where to act first", desc="Each action by effort and impact; numbers match the list below")
     per_comp: dict[str, int] = {}
     for f in usable:
         per_comp[f.competitor] = per_comp.get(f.competitor, 0) + 1
@@ -491,10 +505,11 @@ def build_site(report: ResearchReport, out_dir: Path, charts: Mapping[str, Path 
         recs_by_time={k: [r for r in report.recommendations if r.timeframe == k] for k, _, _ in TIMEFRAMES},
         matrix=matrix_view(report, target), moves=(moves := timeline(report, facts)),
         latest_move={m.competitor: m for m in reversed(moves)},
-        battlecard=lambda n: next((b for b in report.battlecards if b.competitor == n), None),
+        battlecard=lambda n: next((b for b in best_battlecards(report.battlecards) if b.competitor == n), None),
         suggestions=suggested_questions(report, [p.name for p in comps]),
     )
     common["charts"] = build_charts(report, target, summaries, common["business_risks"], moves, facts)
+    common["numbers"] = by_the_numbers(report)
 
     def render(template: str, path: str, page: str, root: str = "", script: str | None = None, **extra: Any) -> None:
         cite = Citer(facts, root)

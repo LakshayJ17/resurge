@@ -1,16 +1,51 @@
+# Python
 .venv/
+venv/
 __pycache__/
-*.pyc
-.pytest_cache/
-.env
-data/
-reports/
+*.py[cod]
 *.egg-info/
 dist/
 build/
-.DS_Store
+
+# Website (Next.js): dependencies and build output
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+*.tsbuildinfo
+
+# Tool caches and coverage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Secrets (keep the template)
+.env
+.env.*
+!.env.example
 credentials/
 service_account*.json
+*.pem
+*.key
+docker-compose.override.yml
 
-# private interview notes
-INTERVIEW_PREP.md
+# Local data: research runs, user accounts, vector index
+data/
+reports/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+*.log
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+._*
+Thumbs.db

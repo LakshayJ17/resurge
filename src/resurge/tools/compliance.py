@@ -66,7 +66,7 @@ DEFAULT_NOFETCH_DOMAINS: tuple[str, ...] = (
 
 STAT_KEYS: tuple[str, ...] = (
     "robots_disallowed", "access_denied", "legal_unavailable", "rate_limited", "retried_after",
-    "circuit_open", "circuits_opened", "tos_skipped", "paywalled", "fallback_used",
+    "circuit_open", "circuits_opened", "tos_skipped", "paywalled", "fallback_used", "blocked_private_address",
 )
 
 

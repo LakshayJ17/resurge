@@ -78,7 +78,7 @@ def build_server() -> MCPServer:
 
     @server.tool(description="Run a full multi-agent competitive-intelligence engagement (research, fact-checking, "
                              "analysis, risk, deliverables). depth: quick | standard | deep. Returns the executive "
-                             "summary, scorecard and paths of the generated deck/workbook/HTML report.")
+                             "summary, scorecard and paths of the generated report, PDF and deck.")
     async def research_competitors(target: str, competitors: list[str] | None = None, depth: str = "quick",
                                    focus_areas: list[str] | None = None, questions: list[str] | None = None,
                                    max_competitors: int = 4, industry: str | None = None,
@@ -158,12 +158,17 @@ def build_server() -> MCPServer:
     async def ask_research(question: str, run_id: str | None = None) -> dict:
         from . import rag
 
+        from .input_guard import INJECTION_REPLY, looks_like_injection
+
+        if looks_like_injection(question or ""):  # the question may carry text an upstream model picked up elsewhere
+            return {"answer": INJECTION_REPLY, "citations": [], "confidence": "low", "followups": [], "grounded": False,
+                    "backend": "screen"}
         s = load_settings()
         rid = run_id or rag.latest_run_id(s)
         if not rid:
             raise ValueError("No finished run yet - call research_competitors first")
         try:
-            return await rag.ask(s, rid, question)
+            return await rag.ask(s, rid, question[:500])
         except rag.RunNotFound as e:
             raise ValueError(f"Unknown or unfinished run {rid!r} - call list_runs first") from e
         except rag.RagUnavailable as e:

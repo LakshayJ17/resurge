@@ -1,6 +1,6 @@
 """Charts for every deliverable: 200 dpi PNGs drawn with matplotlib's Agg canvas.
 
-Visual system (shared by the deck, workbook and HTML via the constants below):
+Visual system (shared by the deck, PDF and HTML via the constants below):
 
 * Each company gets one identity colour, assigned in a fixed order from a
   colour-blind-validated categorical palette; the colour follows the company
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -35,6 +35,7 @@ from resurge.outputs.tables import (
     clip,
     compact_number,
     entity_names,
+    fact_index,
     fmt_int,
     fmt_usd,
     is_target,
@@ -52,6 +53,13 @@ from resurge.outputs.tables import (
     verification_stats,
     wrap_label,
     wrap_lines,
+)
+from resurge.outputs.stats import (
+    SOURCE_TYPE_LABELS,
+    evidence_by_company,
+    feature_counts,
+    numbered_recommendations,
+    voice_of_customer,
 )
 from resurge.schemas import PricingTier, ResearchReport
 
@@ -448,7 +456,7 @@ def chart_pricing(report: ResearchReport, colors: dict[str, str]) -> Figure | No
         "Pricing ladder",
         "Cheapest and most expensive paid tier per competitor · list price in USD per month",
         "Prices normalised to USD per month from vendor pricing pages. Tiers without a public price are listed at right."
-        + (f" {hidden} more competitors are listed in the workbook." if hidden else ""),
+        + (f" {hidden} more competitors are listed in the full report." if hidden else ""),
     )
     slot, axis_band = 0.82, 0.45
     fig = _figure(frame, slot * n + axis_band)
@@ -580,7 +588,7 @@ def chart_feature_matrix(report: ResearchReport, colors: dict[str, str]) -> Figu
         width,
         "Feature comparison",
         f"{nf} capabilities across {nc} companies · from product pages, docs and verified facts",
-        f"Not shown: {' and '.join(hidden)} (see the workbook)." if hidden else "",
+        f"Not shown: {' and '.join(hidden)} (see the full report)." if hidden else "",
     )
     fig = _figure(frame, head_h + nf * row_h + legend_h)
     left = PAD + label_w + max(0.0, (width - 2 * PAD - label_w - nc * cell_w) / 2 - 0.1)
@@ -1117,6 +1125,336 @@ def chart_model_usage(report: ResearchReport, colors: dict[str, str]) -> Figure 
 
 
 # --------------------------------------------------------------------------- #
+# Cost by team size
+# --------------------------------------------------------------------------- #
+TEAM_SIZES: tuple[int, ...] = (1, 10, 50, 200)
+SOURCE_COLORS: dict[str, str] = {
+    "official": NAVY, "news": "#2A78D6", "review": TEAL, "community": "#EDA100", "reference": "#6250D6",
+    "code": SLATE[600], "social": "#E87BA4", "other": SLATE[300],
+}
+PRIORITY_COLORS: dict[str, str] = {"high": NAVY, "medium": TEAL_RAMP[600], "low": SLATE[400]}
+
+
+def _usd_compact(value: float) -> str:
+    return f"${compact_number(value)}" if abs(value) >= 1000 else f"${value:,.0f}"
+
+
+def _spread(values: list[float], gap: float) -> list[float]:
+    """Positions for labels at ``values`` (ascending) pushed apart by at least ``gap``."""
+    out: list[float] = []
+    for v in values:
+        out.append(max(v, out[-1] + gap) if out else v)
+    return out
+
+
+def chart_cost_curve(report: ResearchReport, colors: dict[str, str]) -> Figure | None:
+    """Annual list price of each company's cheapest paid plan for 1, 10, 50 and 200 seats."""
+    from matplotlib.ticker import FuncFormatter
+
+    from resurge.outputs.site import price_summary
+
+    series = []
+    for profile in report.profiles:
+        entry = price_summary(profile).entry
+        if entry and entry.monthly:
+            per_seat = entry.per_seat is not False
+            ys = [entry.monthly * 12 * (n if per_seat else 1) for n in TEAM_SIZES]
+            series.append((profile.name, f"{clip(one_line(profile.name), 22)} · {clip(one_line(entry.tier.name), 16)}",
+                           ys, per_seat))
+    if not series:
+        return None
+    width = 9.6
+    labels = [f"{label}  {_usd_compact(ys[-1])}" for _, label, ys, _ in series]
+    label_w = max(_text_w(lbl, 9.5) for lbl in labels) + 0.3
+    flat = any(not per_seat for *_, per_seat in series)
+    frame = _frame(width, "Annual cost by team size",
+                   "Cheapest paid plan of each company at list price, for a year",
+                   "Flat-priced plans cost the same at every team size." if flat else "")
+    body, axis_band = 3.7, 0.45
+    fig = _figure(frame, body)
+    ax = _axes(fig, PAD + 0.7, frame.bottom + axis_band, width - 2 * PAD - 0.7 - label_w, body - axis_band - 0.1)
+    xs = list(range(len(TEAM_SIZES)))
+    top = max(max(ys) for _, _, ys, _ in series) * 1.08 or 1.0
+    ax.set_ylim(0, top)
+    ax.set_xlim(-0.15, len(TEAM_SIZES) - 0.85)
+    for name, _, ys, _ in series:
+        ax.plot(xs, ys, color=color_for(colors, name), linewidth=2.2, marker="o", markersize=5.5, zorder=3)
+    ends = sorted(((ys[-1], f"{label}  {_usd_compact(ys[-1])}", name) for name, label, ys, _ in series))
+    for (y, text, name), ly in zip(ends, _spread([e[0] for e in ends], top * 0.075), strict=True):
+        ax.annotate(text, (xs[-1], y), xytext=(xs[-1] + 0.12, ly), textcoords="data", va="center", ha="left",
+                    fontsize=9.5, color=color_for(colors, name) if luminance(color_for(colors, name)) < 0.5 else INK,
+                    annotation_clip=False)
+    ax.set_xticks(xs, labels=[f"{n} seat{'s' if n != 1 else ''}" for n in TEAM_SIZES])
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: _usd_compact(v)))
+    ax.grid(axis="y", zorder=0)
+    ax.set_axisbelow(True)
+    _hide_spines(ax, "top", "right", "left")
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# Competitor moves over time
+# --------------------------------------------------------------------------- #
+_MON = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def chart_timeline(report: ResearchReport, colors: dict[str, str]) -> Figure | None:
+    """Dated competitor moves on a time axis, one row per company."""
+    from resurge.outputs.site import timeline
+
+    moves = [m for m in timeline(report, fact_index(report)) if m.sort[0]]
+    if len(moves) < 2:
+        return None
+
+    def when(m: Any) -> float:
+        year, month = m.sort
+        return year + ((month - 0.5) / 12 if month else 0.5)
+
+    companies = list(dict.fromkeys(m.competitor for m in sorted(moves, key=when, reverse=True)))
+    rows = {c: i for i, c in enumerate(companies)}
+    xs = [when(m) for m in moves]
+    lo, hi = min(xs), max(xs)
+    pad = max(hi - lo, 0.5) * 0.06 + 1 / 24
+    n = len(companies)
+    names = [wrap_label(clip(c, 36), 22, 2) for c in companies]
+    width = 9.6
+    label_w = max(_text_w(nm, 10.5) for nm in names) + 0.3
+    count_w = 1.2
+    year_only = any(m.sort[1] == 0 for m in moves)
+    frame = _frame(width, "Competitor moves over time",
+                   "Launches, pricing changes, funding and other news with a known date",
+                   "Hollow dots: only the year is known." if year_only else "")
+    slot, axis_band = 0.55, 0.5
+    fig = _figure(frame, slot * n + axis_band)
+    ax = _axes(fig, PAD + label_w, frame.bottom + axis_band, width - 2 * PAD - label_w - count_w, slot * n)
+    ax.set_xlim(lo - pad, hi + pad)
+    ax.set_ylim(n - 0.5, -0.5)
+    for i in range(n):
+        ax.axhline(i, color=GRID, linewidth=0.8, zorder=1)
+    stacked: Counter[tuple[int, float]] = Counter()
+    for m in moves:
+        i, x = rows[m.competitor], when(m)
+        k = stacked[(i, round(x, 3))]
+        stacked[(i, round(x, 3))] += 1
+        dy = ((k + 1) // 2) * 0.26 * (1 if k % 2 else -1)
+        c = color_for(colors, m.competitor)
+        ax.scatter([x], [i + dy], s=75, color=c if m.sort[1] else WHITE, edgecolors=c, linewidths=1.6, zorder=3)
+    per = Counter(m.competitor for m in moves)
+    for c, i in rows.items():
+        ax.annotate(f"{per[c]} move{'s' if per[c] != 1 else ''}", (1, i), xycoords=("axes fraction", "data"),
+                    xytext=(10, 0), textcoords="offset points", va="center", fontsize=9.5, color=INK_2,
+                    annotation_clip=False)
+    first, last = math.ceil((lo - pad) * 12), math.floor((hi + pad) * 12)
+    step = next(s for s in (1, 2, 3, 6, 12, 24, 60) if (last - first) / s <= 7)
+    ticks = [t for t in range(first, last + 1) if t % step == 0]
+    fmt = (lambda t: str(t // 12)) if step >= 12 else (lambda t: f"{_MON[t % 12]} {t // 12}")
+    ax.set_xticks([t / 12 for t in ticks], labels=[fmt(t) for t in ticks])
+    ax.set_yticks(range(n), labels=names)
+    ax.tick_params(axis="y", pad=8)
+    ax.grid(axis="x", zorder=0)
+    ax.set_axisbelow(True)
+    _hide_spines(ax, "left", "top", "right")
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# Capability breadth
+# --------------------------------------------------------------------------- #
+def chart_feature_breadth(report: ResearchReport, colors: dict[str, str]) -> Figure | None:
+    """How many of the compared capabilities each company has, has partly, lacks, or has no evidence for."""
+    from matplotlib.patches import Patch
+
+    counts = feature_counts(report)
+    if not counts:
+        return None
+    total = len(report.feature_matrix.features)
+    order = ("yes", "partial", "no", "unknown")
+    n = len(counts)
+    names = [wrap_label(clip(name, 36), 22, 2) for name, _ in counts]
+    width = 9.6
+    label_w = max(_text_w(nm, 10.5, bold=True) for nm in names) + 0.3
+    value_w = 1.55
+    frame = _frame(width, "Capabilities confirmed by public evidence",
+                   f"Out of {total} capabilities compared · unknown means no public evidence either way")
+    slot, legend_h = 0.55, 0.42
+    fig = _figure(frame, legend_h + slot * n + 0.05)
+    ax = _axes(fig, PAD + label_w, frame.bottom + 0.05, width - 2 * PAD - label_w - value_w, slot * n)
+    ax.set_xlim(0, total)
+    ax.set_ylim(n - 0.5, -0.5)
+    for i, (name, c) in enumerate(counts):
+        left = 0
+        for key in order:
+            value = c[key]
+            if not value:
+                continue
+            style = CELL_STATUS[key]
+            ax.barh(i, value, left=left, height=0.56, color=style.fill, edgecolor=WHITE, linewidth=1.5)
+            if value / total >= 0.08:
+                ax.text(left + value / 2, i, str(value), ha="center", va="center", fontsize=9.5,
+                        color=style.ink, fontweight="bold")
+            left += value
+        ax.annotate(f"{c['yes']} of {total} · {pct(c['yes'] / total)}", (1, i), xycoords=("axes fraction", "data"),
+                    xytext=(8, 0), textcoords="offset points", va="center", fontsize=10, color=INK,
+                    fontweight="bold" if is_target(name, report) else "normal", annotation_clip=False)
+    ax.set_yticks(range(n), labels=names)
+    for tick, (name, _) in zip(ax.get_yticklabels(), counts, strict=True):
+        if is_target(name, report):
+            tick.set_fontweight("bold")
+    ax.tick_params(axis="y", pad=8)
+    ax.set_xticks([])
+    _hide_spines(ax)
+    ax.legend(handles=[Patch(facecolor=CELL_STATUS[k].fill, edgecolor="none") for k in order],
+              labels=["Has it", "Partly", "Doesn't", "No evidence"], loc="lower left",
+              bbox_to_anchor=(0, 1 + 0.06 / (slot * n)), ncol=4, fontsize=9, handlelength=1.1, handleheight=0.9,
+              columnspacing=1.2, borderaxespad=0)
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# Voice of the customer
+# --------------------------------------------------------------------------- #
+PRAISE, COMPLAINT = "#34D399", "#F87171"
+
+
+def chart_voice(report: ResearchReport, colors: dict[str, str]) -> Figure | None:
+    """Praise against complaints found in verified customer sources, per company (diverging bars)."""
+    rows = sorted(voice_of_customer(report), key=lambda r: (-(r[1] - r[2]), r[0].lower()))
+    if not rows:
+        return None
+    n = len(rows)
+    most = max(max(p, c) for _, p, c, _ in rows) or 1
+    names = [wrap_label(clip(name, 36), 22, 2) for name, *_ in rows]
+    width = 9.6
+    label_w = max(_text_w(nm, 10.5) for nm in names) + 0.3
+    score_w = 1.15
+    scored = any(score is not None for *_, score in rows)
+    frame = _frame(width, "What customers say",
+                   "Praise and complaints in verified customer sources such as reviews, forums and app stores",
+                   "Score: analyst-rated sentiment from −1 (very negative) to +1 (very positive) where the evidence "
+                   "allowed one." if scored else "")
+    slot, head = 0.55, 0.38
+    fig = _figure(frame, head + slot * n + 0.05)
+    ax = _axes(fig, PAD + label_w, frame.bottom + 0.05, width - 2 * PAD - label_w - score_w, slot * n)
+    ax.set_xlim(-most * 1.3, most * 1.3)
+    ax.set_ylim(n - 0.5, -0.5)
+    ax.axvline(0, color=AXIS, linewidth=1, zorder=1)
+    for i, (_, praise, complaints, score) in enumerate(rows):
+        if complaints:
+            ax.barh(i, -complaints, height=0.52, color=COMPLAINT, edgecolor="none", zorder=2)
+            ax.annotate(str(complaints), (-complaints, i), xytext=(-6, 0), textcoords="offset points", ha="right",
+                        va="center", fontsize=10, color=INK, annotation_clip=False)
+        if praise:
+            ax.barh(i, praise, height=0.52, color=PRAISE, edgecolor="none", zorder=2)
+            ax.annotate(str(praise), (praise, i), xytext=(6, 0), textcoords="offset points", ha="left",
+                        va="center", fontsize=10, color=INK, annotation_clip=False)
+        if score is not None:
+            ax.annotate(f"score {score:+.1f}", (1, i), xycoords=("axes fraction", "data"), xytext=(10, 0),
+                        textcoords="offset points", va="center", fontsize=9.5, color=INK_2, annotation_clip=False)
+    top = 1 + 0.1 / (slot * n)
+    ax.text(0.48, top, "◀ Complaints", transform=ax.transAxes, ha="right", va="bottom", fontsize=10,
+            fontweight="bold", color="#B91C1C")
+    ax.text(0.52, top, "Praise ▶", transform=ax.transAxes, ha="left", va="bottom", fontsize=10,
+            fontweight="bold", color="#047857")
+    ax.set_yticks(range(n), labels=names)
+    ax.tick_params(axis="y", pad=8)
+    ax.set_xticks([])
+    _hide_spines(ax)
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# Impact against effort
+# --------------------------------------------------------------------------- #
+def chart_impact_effort(report: ResearchReport, colors: dict[str, str]) -> Figure | None:
+    """Recommended actions on an impact/effort grid; numbers match the action plan."""
+    from matplotlib.patches import Patch, Rectangle
+
+    recs = numbered_recommendations(report)
+    spots = {(clamp_int(r.effort, 1, 5), clamp_int(r.impact, 1, 5)) for _, r in recs}
+    if len(recs) < 2 or len(spots) < 2:
+        return None  # every action in one spot says nothing
+    width, body = 8.6, 5.1
+    frame = _frame(width, "Where to act first",
+                   "Each recommended action by expected impact and effort, 1 to 5 · numbers match the action plan")
+    fig = _figure(frame, body)
+    left, bottom = PAD + 0.85, frame.bottom + 0.62
+    ax = _axes(fig, left, bottom, width - left - PAD - 0.1, body - 0.62 - 0.45)
+    ax.set_xlim(0.5, 5.5)
+    ax.set_ylim(0.5, 5.5)
+    zones = ((0.5, 3.5, 2.0, "Quick wins", "#DCFCE7", "#166534"), (2.5, 3.5, 3.0, "Big bets", SLATE[100], INK_2),
+             (0.5, 0.5, 2.0, "Fill-ins", SLATE[50], INK_3), (2.5, 0.5, 3.0, "Plan carefully", "#FFFBEB", "#92400E"))
+    for x, y, w, label, fill, ink in zones:
+        h = 2.0 if y > 1 else 3.0
+        ax.add_patch(Rectangle((x, y), w, h, facecolor=fill, edgecolor=WHITE, linewidth=2, zorder=0))
+        ax.text(x + 0.1, y + h - 0.1, label, ha="left", va="top", fontsize=10.5, fontweight="bold", color=ink, zorder=1)
+    groups: dict[tuple[int, int], list[tuple[int, Any]]] = defaultdict(list)
+    for number, rec in recs:
+        groups[(clamp_int(rec.effort, 1, 5), clamp_int(rec.impact, 1, 5))].append((number, rec))
+    for (x, y), items in groups.items():
+        k = len(items)
+        radius = 0 if k == 1 else 0.2 if k <= 4 else 0.3
+        for j, (number, rec) in enumerate(items):
+            angle = math.pi / 2 + 2 * math.pi * j / k
+            px, py = x + radius * math.cos(angle), y + radius * math.sin(angle)
+            ax.scatter([px], [py], s=330, color=PRIORITY_COLORS.get(rec.priority, NAVY), edgecolors=WHITE,
+                       linewidths=1.5, zorder=3)
+            ax.text(px, py, str(number), ha="center", va="center", fontsize=9, fontweight="bold", color=WHITE, zorder=4)
+    ax.set_xticks(range(1, 6), labels=["1\nlow", "2", "3", "4", "5\nhigh"])
+    ax.set_yticks(range(1, 6), labels=["1 low", "2", "3", "4", "5 high"])
+    ax.set_xlabel("Effort", fontsize=10.5, color=INK_2, labelpad=6)
+    ax.set_ylabel("Impact", fontsize=10.5, color=INK_2, labelpad=6)
+    _hide_spines(ax, "top", "right")
+    used = [p for p in ("high", "medium", "low") if any(r.priority == p for _, r in recs)]
+    ax.legend(handles=[Patch(facecolor=PRIORITY_COLORS[p], edgecolor="none") for p in used],
+              labels=[f"{p.title()} priority" for p in used], loc="lower right", bbox_to_anchor=(1.0, 1.01),
+              ncol=len(used), fontsize=9, handlelength=1.1, handleheight=0.9, columnspacing=1.2, borderaxespad=0)
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# Evidence mix
+# --------------------------------------------------------------------------- #
+def chart_evidence_mix(report: ResearchReport, colors: dict[str, str]) -> Figure | None:
+    """Verified facts per company, split by the kind of source they came from."""
+    from matplotlib.patches import Patch
+
+    rows = evidence_by_company(report)[:10]
+    if not rows:
+        return None
+    kinds = [k for k in SOURCE_COLORS if any(c[k] for _, c in rows)]
+    n = len(rows)
+    most = max(sum(c.values()) for _, c in rows)
+    names = [wrap_label(clip(name, 36), 22, 2) for name, _ in rows]
+    width = 9.6
+    label_w = max(_text_w(nm, 10.5) for nm in names) + 0.3
+    value_w = 0.8
+    frame = _frame(width, "Where the evidence comes from", "Verified facts per company, by the type of their source")
+    slot, legend_h = 0.52, 0.42
+    fig = _figure(frame, legend_h + slot * n + 0.05)
+    ax = _axes(fig, PAD + label_w, frame.bottom + 0.05, width - 2 * PAD - label_w - value_w, slot * n)
+    ax.set_xlim(0, most)
+    ax.set_ylim(n - 0.5, -0.5)
+    for i, (_, c) in enumerate(rows):
+        left = 0
+        for kind in kinds:
+            if c[kind]:
+                ax.barh(i, c[kind], left=left, height=0.54, color=SOURCE_COLORS[kind], edgecolor=WHITE, linewidth=1.2)
+                left += c[kind]
+        ax.annotate(fmt_int(left), (left, i), xytext=(6, 0), textcoords="offset points", va="center", fontsize=10,
+                    color=INK, annotation_clip=False)
+    ax.set_yticks(range(n), labels=names)
+    ax.tick_params(axis="y", pad=8)
+    ax.set_xticks([])
+    _hide_spines(ax, "top", "right", "bottom")
+    ax.spines["left"].set_color(AXIS)
+    ax.legend(handles=[Patch(facecolor=SOURCE_COLORS[k], edgecolor="none") for k in kinds],
+              labels=[SOURCE_TYPE_LABELS[k] for k in kinds], loc="lower left",
+              bbox_to_anchor=(0, 1 + 0.06 / (slot * n)), ncol=min(len(kinds), 6), fontsize=9, handlelength=1.1,
+              handleheight=0.9, columnspacing=1.1, borderaxespad=0)
+    return fig
+
+
+# --------------------------------------------------------------------------- #
 # Registry / entry point
 # --------------------------------------------------------------------------- #
 ChartBuilder = Callable[[ResearchReport, dict[str, str]], "Figure | None"]
@@ -1130,6 +1468,12 @@ CHARTS: dict[str, ChartBuilder] = {
     "verification_funnel": chart_verification_funnel,
     "threat_levels": chart_threat_levels,
     "model_usage": chart_model_usage,
+    "cost_curve": chart_cost_curve,
+    "timeline": chart_timeline,
+    "feature_breadth": chart_feature_breadth,
+    "voice": chart_voice,
+    "impact_effort": chart_impact_effort,
+    "evidence_mix": chart_evidence_mix,
 }
 CHART_TITLES: dict[str, str] = {
     "pricing": "Pricing ladder: cheapest and most expensive paid tier per competitor",
@@ -1140,6 +1484,12 @@ CHART_TITLES: dict[str, str] = {
     "verification_funnel": "Fact verification funnel",
     "threat_levels": "Threat level by competitor",
     "model_usage": "LLM calls and tokens per model",
+    "cost_curve": "Annual cost by team size for each company's cheapest paid plan",
+    "timeline": "Competitor moves over time",
+    "feature_breadth": "Capabilities confirmed by public evidence, per company",
+    "voice": "Customer praise against complaints, per company",
+    "impact_effort": "Recommended actions by impact and effort",
+    "evidence_mix": "Verified facts per company by type of source",
 }
 
 

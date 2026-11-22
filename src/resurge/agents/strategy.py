@@ -13,7 +13,7 @@ from ..schemas import Competitor, ResearchPlan, ResearchQuestion, SearchResult, 
 from ..security import spotlight_rules
 from ..text import short_hash
 from ..tools import domain_of
-from .base import Agent
+from .base import Agent, client_block
 from .common import name_tokens, plausible_official, render_results, safe_search
 from .org import DEPTH_DIMENSIONS, DIMENSIONS, NOT_COMPETITORS, TARGET_DIMENSIONS, match_dimension
 
@@ -178,8 +178,7 @@ class ResearchStrategist(Agent):
         self.emit("start", f"Designing research across {len(dims)} dimensions for {len(ctx.subjects())} subjects")
         user = (
             f"Engagement: competitive analysis for {b.target} ({b.target_description or ctx.target_kind}).\n"
-            f"Audience: {b.audience}. Focus areas: {', '.join(b.focus_areas) or 'none given'}. "
-            f"Client questions: {'; '.join(b.questions) or 'none'}.\nNotes: {' '.join(ctx.notes) or '-'}\n"
+            f"Audience: {b.audience}.\n{client_block(b)}\nNotes: {' '.join(ctx.notes) or '-'}\n"
             f"Competitors: {', '.join(c.name for c in ctx.competitors)}\n"
             f"Candidate dimensions: {', '.join(dims)}\n\n"
             "1) Order the candidate dimensions by importance for this client (you may drop at most 2 irrelevant ones).\n"

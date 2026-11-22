@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import time
 from pathlib import Path
@@ -100,7 +101,7 @@ def run(
     max_competitors: int = typer.Option(4, "--max", "-n", help="Max competitors to auto-discover"),
     audience: str = typer.Option("executive team", help="Who reads the deliverables"),
     out: Optional[Path] = typer.Option(None, help="Output directory (default reports/<run_id>)"),
-    formats: str = typer.Option("", help="Subset: charts,html,md,pptx,xlsx,json (default all)"),
+    formats: str = typer.Option("", help="Subset: charts,site,html,md,pdf,pptx,json (default all)"),
     local: bool = typer.Option(False, help="Use only local Ollama models (100% private, unlimited)"),
     private: bool = typer.Option(False, help="Exclude providers whose free tier may train on prompts"),
     providers: str = typer.Option("", help="Restrict to providers, e.g. 'groq,gemini'"),
@@ -178,9 +179,9 @@ def _summary(result) -> None:
             console.print(f"  [dim]{lesson.id}[/dim] ({lesson.role}) {lesson.text}")
     if r.changes_since_last_run:
         console.print(f"[yellow]{len(r.changes_since_last_run)} changes since last run[/yellow] (see report)")
-    site = result.artifacts.get("site")
-    if site and not str(site).endswith("_error"):
-        console.print(f"\n[bold]Open the report:[/bold] {Path(str(site)).resolve().as_uri()}")
+    page = result.artifacts.get("html") or result.artifacts.get("site")  # the long report page is the report
+    if page and not str(page).endswith("_error"):
+        console.print(f"\n[bold]Open the report:[/bold] {Path(str(page)).resolve().as_uri()}")
         console.print(f"[bold]Ask it questions:[/bold] resurge chat {r.run_id}   (or the Ask page via `resurge ui`)")
 
 
@@ -604,6 +605,27 @@ def ui(host: str = "127.0.0.1", port: int = 8765):
     console.print(f"[magenta]Resurge dashboard[/magenta] → http://{host}:{port}")
     uvicorn.run(create_app(), host=host, port=port, log_level="warning")
 
+
+@app.command()
+def serve(host: str = typer.Option("0.0.0.0", help="Interface to listen on"),
+          port: int = typer.Option(int(os.getenv("PORT", "8000")), help="Port (the PORT env var is honoured)")):
+    """Run the hosted multi-user web app: sign up, log in, type a company (for Docker and servers)."""
+    try:
+        import uvicorn
+    except ImportError as e:
+        console.print("[red]Install the web extra: pip install 'resurge[web,rag]'[/red]")
+        raise typer.Exit(1) from e
+    from .web.hosted import create_hosted_app, default_frontend_dir
+
+    site = Path(os.getenv("RESURGE_FRONTEND_DIR") or default_frontend_dir())
+    if not (site / "index.html").is_file():
+        console.print(f"[yellow]The website is not built yet ({site}). Build it once: "
+                      "cd frontend && npm install && npm run build[/yellow]")
+    trust_proxy = os.getenv("RESURGE_TRUST_PROXY", "0") == "1"
+    console.print(f"[magenta]Resurge web app[/magenta] → http://{host}:{port}"
+                  + (" (trusting proxy headers)" if trust_proxy else ""))
+    uvicorn.run(create_hosted_app(), host=host, port=port, log_level="info", proxy_headers=trust_proxy,
+                forwarded_allow_ips="*" if trust_proxy else "127.0.0.1")
 
 
 @app.command()

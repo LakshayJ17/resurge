@@ -27,15 +27,18 @@ providers:
     trains_on_data: false
     concurrency: 4
     reset_tz: UTC
-    notes: "No card. ~30 RPM / 1K RPD per model; tight TPM (6-12K) -> best for short, fast calls. Cached tokens don't count toward limits."
+    notes: "No card. 30 RPM / 1K RPD / 8K TPM per chat model (checked from x-ratelimit headers 2026-11-21) -> best for short, fast calls. Cached tokens don't count toward limits."
+    # Removed 2026-11-21 (no longer served to free keys; Groq's model page lists them as 'Contact sales'):
+    #   llama-3.3-70b-versatile, llama-3.1-8b-instant - deprecated 2026-06-17, shut down for on-demand use 2026-08-16
+    #     (Groq's replacements: gpt-oss-120b / qwen3.x-27b and gpt-oss-20b) - https://console.groq.com/docs/deprecations
+    #   minimaxai/minimax-m2.7 - preview model, missing from GET /models for free keys
     models:
       - {id: openai/gpt-oss-120b, family: gpt-oss, tags: [reasoning, analysis, verifier, writer], quality: 0.86, context: 131072, max_output: 65536, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, reasoning_effort: medium}
       - {id: openai/gpt-oss-20b, family: gpt-oss, tags: [fast, extraction, verifier], quality: 0.74, context: 131072, max_output: 65536, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, reasoning_effort: low}
       - {id: qwen/qwen3.8-27b, family: qwen, tags: [reasoning, extraction, verifier, analysis], quality: 0.80, context: 131072, max_output: 16384, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, preview: true}
-      - {id: llama-3.3-70b-versatile, family: llama, tags: [verifier, writer, analysis], quality: 0.78, context: 131072, max_output: 32768, rpm: 30, rpd: 1000, tpm: 12000, tpd: 100000}
-      - {id: llama-3.1-8b-instant, family: llama, tags: [fast], quality: 0.55, context: 131072, max_output: 8192, rpm: 30, rpd: 14400, tpm: 6000, tpd: 500000}
-      - {id: minimaxai/minimax-m2.7, family: minimax, tags: [reasoning, writer, analysis], quality: 0.83, context: 196608, max_output: 32768, rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000, preview: true}
-      # Prompt-injection classifier (not a chat model) - used only by the Security & Compliance Officer
+      # Safety reasoning model that applies a written policy (Llama Guard 4's replacement on Groq) - guardrail role only
+      - {id: openai/gpt-oss-safeguard-20b, family: gpt-oss-safeguard, tags: [guardrail], quality: 0.9, context: 131072, max_output: 65536, rpm: 3, rpd: 1000, tpm: 2000, tpd: 200000, json_mode: false, reasoning_effort: low, preview: true}
+      # Prompt-injection classifier (not a chat model) - Security & Compliance Officer and input guardrails
       - {id: meta-llama/llama-prompt-guard-2-86m, family: prompt-guard, tags: [guard], quality: 0.5, context: 512, max_output: 16, rpm: 30, rpd: 14400, tpm: 15000, json_mode: false, system_prompt: false}
 
   gemini:
@@ -154,24 +157,28 @@ providers:
 # --------------------------------------------------------------------------- #
 roles:
   ceo:                 {prefer: [gemini/gemini-3.8-flash, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/openai/gpt-oss-120b, mistral/mistral-large-latest], tags: [writer, reasoning], max_tokens: 3000}
-  chief_of_staff:      {prefer: [groq/llama-3.1-8b-instant, gemini/gemini-3.1-flash-lite, groq/openai/gpt-oss-20b], tags: [fast], max_tokens: 1200}
+  chief_of_staff:      {prefer: [groq/openai/gpt-oss-20b, gemini/gemini-3.1-flash-lite, gemini/gemma-4-26b-a4b-it], tags: [fast], max_tokens: 1200}
   market_scout:        {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite, groq/qwen/qwen3.8-27b], tags: [reasoning, analysis], max_tokens: 2500}
   research_strategist: {prefer: [groq/qwen/qwen3.8-27b, groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite], tags: [reasoning], max_tokens: 3500}
   researcher_product:  {prefer: [gemini/gemini-3.5-flash-lite, gemini/gemma-4-31b-it, groq/openai/gpt-oss-20b, mistral/mistral-small-latest], tags: [extraction], max_tokens: 3000}
   researcher_market:   {prefer: [gemini/gemma-4-31b-it, gemini/gemini-3.1-flash-lite, mistral/mistral-small-latest, groq/openai/gpt-oss-20b], tags: [extraction], max_tokens: 3000}
   researcher_voice:    {prefer: [groq/openai/gpt-oss-20b, gemini/gemma-4-26b-a4b-it, openrouter/google/gemma-4-31b-it:free], tags: [extraction], max_tokens: 3000}
   researcher_tech:     {prefer: [mistral/mistral-small-latest, gemini/gemini-3.1-flash-lite, groq/openai/gpt-oss-20b], tags: [extraction], max_tokens: 3000}
-  fact_checker:        {prefer: [groq/llama-3.3-70b-versatile, groq/qwen/qwen3.8-27b, nvidia/openai/gpt-oss-120b, mistral/mistral-small-latest], tags: [verifier], max_tokens: 2500, cross_family: true}
+  # Qwen first: a family no extractor uses, so cross-family checking keeps its first choice. Gemma has 1.5K RPD; OpenRouter's 50/day shared pool is a late fallback.
+  fact_checker:        {prefer: [groq/qwen/qwen3.8-27b, gemini/gemma-4-31b-it, nvidia/openai/gpt-oss-120b, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, mistral/mistral-small-latest], tags: [verifier], max_tokens: 2500, cross_family: true}
   qa_reviewer:         {prefer: [openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/openai/gpt-oss-120b, gemini/gemini-3.6-flash], tags: [verifier, reasoning], max_tokens: 2000, cross_family: true}
   data_analyst:        {prefer: [gemini/gemini-3.5-flash-lite, groq/openai/gpt-oss-120b, mistral/mistral-medium-latest], tags: [analysis], max_tokens: 4000}
-  strategy_analyst:    {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.6-flash, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/minimaxai/minimax-m2.7], tags: [analysis, reasoning], max_tokens: 4000}
-  risk_officer:        {prefer: [openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/qwen/qwen3.8-27b, groq/minimaxai/minimax-m2.7, groq/openai/gpt-oss-120b], tags: [reasoning], max_tokens: 3000}
-  report_writer:       {prefer: [mistral/mistral-medium-latest, gemini/gemini-3.6-flash, groq/llama-3.3-70b-versatile, groq/openai/gpt-oss-120b], tags: [writer], max_tokens: 3500}
+  strategy_analyst:    {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.6-flash, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/qwen/qwen3.8-27b], tags: [analysis, reasoning], max_tokens: 4000}
+  risk_officer:        {prefer: [openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, groq/qwen/qwen3.8-27b, groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite], tags: [reasoning], max_tokens: 3000}
+  report_writer:       {prefer: [mistral/mistral-medium-latest, gemini/gemini-3.6-flash, groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite], tags: [writer], max_tokens: 3500}
   reflector:           {prefer: [groq/openai/gpt-oss-120b, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, gemini/gemini-3.5-flash-lite], tags: [reasoning], max_tokens: 2500}
   security_guard:      {prefer: [groq/meta-llama/llama-prompt-guard-2-86m], tags: [guard], max_tokens: 8, fallback: false}
+  # Input guardrails: policy check of what people type (gpt-oss-safeguard first; small general models apply the same policy when it is busy)
+  guardrail:           {prefer: [groq/openai/gpt-oss-safeguard-20b, groq/openai/gpt-oss-20b, gemini/gemini-3.5-flash-lite, groq/qwen/qwen3.8-27b, gemini/gemini-3.1-flash-lite, cerebras/gpt-oss-120b, mistral/mistral-small-latest, gemini/gemma-4-26b-a4b-it, groq/openai/gpt-oss-120b], tags: [guardrail], max_tokens: 300, fallback: false}
   # RAG chat over finished runs (resurge chat / dashboard / MCP ask_research): fast, strong, generous daily quota
-  rag_answerer:        {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite, nvidia/openai/gpt-oss-120b, groq/llama-3.3-70b-versatile, mistral/mistral-medium-latest], tags: [writer, analysis], max_tokens: 1200}
-  rag_condenser:       {prefer: [groq/llama-3.1-8b-instant, gemini/gemini-3.1-flash-lite, groq/openai/gpt-oss-20b], tags: [fast], max_tokens: 200}
+  rag_answerer:        {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite, nvidia/openai/gpt-oss-120b, gemini/gemma-4-31b-it, mistral/mistral-medium-latest], tags: [writer, analysis], max_tokens: 1200}
+  # Non-reasoning models first: with max_tokens 200 a reasoning model can spend the budget thinking and return nothing.
+  rag_condenser:       {prefer: [gemini/gemini-3.1-flash-lite, gemini/gemma-4-26b-a4b-it, groq/openai/gpt-oss-20b], tags: [fast], max_tokens: 200}
 
 # Reference price used ONLY to report the money you saved vs a paid frontier API.
 reference_pricing_usd_per_million: {input: 3.0, output: 15.0}

@@ -103,7 +103,7 @@ function renderDetail(d){const r=d.run,s=d.summary;let h=`<span class="pill ${r.
  <h3>Top risks</h3><table>${s.risks.map(x=>`<tr><td>${x.id}</td><td>${esc(x.title)}</td><td>${x.score}</td></tr>`).join("")}</table>`;
  if(s.changes.length)h+=`<h3>Changes since last run</h3><ul>${s.changes.map(c=>`<li>${esc(c)}</li>`).join("")}</ul>`}
  const rid=encodeURIComponent(r.id);
- if(d.files.includes("site/index.html"))h+=`<div class="files" style="margin:14px 0"><a href="/files/${rid}/site/index.html" target="_blank" rel="noopener"><b>Open report →</b></a><a href="/files/${rid}/site/ask.html" target="_blank" rel="noopener"><b>✦ Ask the research</b></a></div>`;
+ if(d.files.includes("report.html")||d.files.includes("site/index.html"))h+=`<div class="files" style="margin:14px 0"><a href="/files/${rid}/${d.files.includes("report.html")?"report.html":"site/index.html"}" target="_blank" rel="noopener"><b>Open report →</b></a>${d.files.includes("site/ask.html")?`<a href="/files/${rid}/site/ask.html" target="_blank" rel="noopener"><b>✦ Ask the research</b></a>`:""}</div>`;
  if(d.files.length)h+=`<h3>Files</h3><div class="files">${d.files.filter(f=>!f.startsWith("site/")&&(!f.endsWith(".png")||f.includes("positioning")||f.includes("pricing"))).map(f=>`<a href="/files/${rid}/${f}" target="_blank" rel="noopener">${esc(f)}</a>`).join("")}</div>`;
  $("#detail").innerHTML=h}
 $("#go").onclick=async()=>{const t=$("#target").value.trim();if(!t)return $("#target").focus();$("#go").disabled=true;

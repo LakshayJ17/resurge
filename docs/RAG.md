@@ -139,6 +139,6 @@ rag.status(settings, run_id)                      # {"indexed", "chunks", "backe
 Model routing for the two roles lives in `config/models.yaml`:
 
 * `rag_answerer`: gpt-oss-120b on Groq, then Gemini Flash-Lite, …
-* `rag_condenser`: Llama-3.1-8B on Groq, then Gemini Flash-Lite, …
+* `rag_condenser`: Gemini 3.1 Flash-Lite, then Gemma-4-26B, then gpt-oss-20b on Groq (non-reasoning models first, so the 200-token budget isn't spent on thinking)
 
 Answers typically take 1–2 s.

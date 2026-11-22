@@ -3,10 +3,43 @@
 {% block title %}Overview{% endblock %}
 {% block heading %}{{ es.headline or (target ~ " competitor report") }}{% endblock %}
 {% block lede %}
-{% if es.summary %}<p class="lede">{{ cite.text(es.summary) }}</p>{% endif %}
+{% for para in (es.summary or "").split("\n\n") if para.strip() %}<p class="lede">{{ cite.text(para) }}</p>{% endfor %}
 <p class="meta">{{ comps | length }} competitors, {{ metrics.facts_usable }} verified facts from {{ n_sources }} public sources, {{ metrics.coverage | pct }} of planned topics covered.</p>
 {% endblock %}
 {% block content %}
+{% set tp = target_profile %}
+{% set intro = (tp.summary if tp and tp.summary else "") or report.brief.target_description or "" %}
+{% if intro or es.scope %}
+<section>
+  <h2>About {{ target }}</h2>
+  {% for para in intro.split("\n\n") if para.strip() %}<p class="measure">{{ cite.text(para) }}</p>{% endfor %}
+  {% if tp and (tp.founded or tp.headquarters or tp.headcount or tp.funding or tp.website) %}
+  <dl class="facts">
+    {% set site_url = safe_url(tp.website) if tp.website else None %}
+    {% if site_url %}<dt>Website</dt><dd><a href="{{ site_url }}" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer">{{ site_url | domain }}</a></dd>{% endif %}
+    {% if tp.founded %}<dt>Founded</dt><dd>{{ tp.founded }}</dd>{% endif %}
+    {% if tp.headquarters %}<dt>Headquarters</dt><dd>{{ tp.headquarters }}</dd>{% endif %}
+    {% if tp.headcount %}<dt>Size</dt><dd>{{ tp.headcount }}</dd>{% endif %}
+    {% if tp.funding %}<dt>Funding / ownership</dt><dd>{{ tp.funding }}</dd>{% endif %}
+  </dl>
+  {% endif %}
+  {% if tp and tp.products %}
+  <h3 style="margin-top:20px">Main businesses and products</h3>
+  <ul class="measure">{% for x in tp.products %}{% set name, _, desc = x.partition(":") %}<li>{% if desc.strip() %}<strong>{{ name }}</strong>: {{ desc.strip() }}{% else %}{{ x }}{% endif %}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if es.scope %}<p class="note" style="margin-top:16px"><strong>What this report covers.</strong> {{ es.scope }}</p>{% endif %}
+</section>
+{% endif %}
+{% if numbers %}
+<section>
+  <h2>By the numbers</h2>
+  <div class="numbers">
+    {% for st in numbers %}
+    <div class="num-tile"><p class="num-v">{{ st.value }}</p><p class="num-l">{{ st.label }}</p>{% if st.detail %}<p class="num-d">{{ st.detail }}</p>{% endif %}</div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% set first = (recs_by_time["now"] + recs_by_time["next"] + recs_by_time["later"])[:3] %}
 {% if first %}
 <section>
@@ -49,11 +82,22 @@
 </section>
 {% endif %}
 
+{% if es.answers %}
+<section>
+  <h2>Your questions</h2>
+  {% for a in es.answers %}
+  <h3 style="margin:18px 0 6px">{{ a.question }}</h3>
+  <p class="measure">{{ cite.text(a.answer) }}{{ cite(a.fact_ids, 4) }}{% if not a.answered %} <span class="muted small">(not answered by the research)</span>{% endif %}</p>
+  {% endfor %}
+</section>
+{% endif %}
+
 {% if comps %}
 <section>
   <div class="sec-head"><h2>Competitors</h2><a href="pricing.html">Pricing compared</a></div>
   {{ ui.fig(charts.threat, "Threat to " ~ target, "Analyst rating from 1 (low) to 5 (critical), based on the evidence in each profile.") }}
   {{ ui.fig(charts.entry_price, "Cheapest paid plan", "List price in US dollars a month. Companies without a published price are left out.") }}
+  {{ ui.fig(charts.voice, "What customers say", "Complaints and praise found in verified customer sources such as reviews and forums.") }}
   <div class="table-wrap">
   <table class="t">
     <thead><tr><th>Company</th><th>Threat</th><th>Best for</th><th>Cheapest paid plan</th><th>Latest move</th></tr></thead>

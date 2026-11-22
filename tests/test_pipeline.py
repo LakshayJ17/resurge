@@ -195,7 +195,7 @@ def company(tmp_path, monkeypatch):
 
 async def test_full_engagement_offline(company, tmp_path):
     brief = ResearchBrief(target="Nimbus Notes", depth=Depth.standard, max_competitors=2)
-    res = await company.run(brief, formats={"json", "md", "xlsx"})
+    res = await company.run(brief, formats={"json", "md"})
     r = res.report
     assert [c.name for c in r.competitors] == ["Atlas Docs", "Quill Workspace"]
     assert {p.name for p in r.profiles} == {"Atlas Docs", "Quill Workspace", "Nimbus Notes"}  # target baseline included

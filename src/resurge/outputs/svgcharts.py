@@ -361,5 +361,95 @@ def risk_matrix(marks: Sequence[RiskMark], *, title: str, desc: str) -> Markup:
     return _svg(top + 5 * cell + 46, title, desc, "".join(parts), cls="narrow", width=left + 5 * cell + 16)
 
 
-__all__ = ["Bar", "Event", "Point", "RiskMark", "Series", "Stack", "hbar", "lines", "money", "nice_max", "risk_matrix",
-           "scatter", "stacked", "timeline"]
+# --------------------------------------------------------------------------- #
+# Diverging bars: two opposing counts per row (complaints | praise)
+# --------------------------------------------------------------------------- #
+@dataclass
+class Diverge:
+    label: str
+    left: int
+    right: int
+    tip: str = ""
+    highlight: bool = False
+
+
+def diverging(rows: Sequence[Diverge], *, title: str, desc: str, left_name: str, right_name: str,
+              label_w: int = 170) -> Markup:
+    if not rows:
+        return Markup("")
+    bar_h, gap, top = 14, 14, 26
+    plot_x = label_w + 12
+    plot_w = W - plot_x - 40
+    mid = plot_x + plot_w / 2
+    half = plot_w / 2 - 40
+    vmax = max(max(r.left, r.right) for r in rows) or 1
+    parts = [f'<text class="tick" x="{mid - 10:.1f}" y="{top - 12}" text-anchor="end">◀ {_e(left_name)}</text>',
+             f'<text class="tick" x="{mid + 10:.1f}" y="{top - 12}">{_e(right_name)} ▶</text>']
+    for i, r in enumerate(rows):
+        y = top + i * (bar_h + gap)
+        wl, wr = half * r.left / vmax, half * r.right / vmax
+        cy = y + bar_h / 2
+        bars = ""
+        if r.left:
+            bars += (f'<path class="mark neg" transform="translate({2 * mid:.1f},0) scale(-1,1)" '
+                     f'd="{_bar_path(mid, y, wl, bar_h)}"/>'
+                     f'<text class="val" x="{mid - wl - 8:.1f}" y="{cy}" text-anchor="end" '
+                     f'dominant-baseline="central">{r.left}</text>')
+        if r.right:
+            bars += (f'<path class="mark{" hl" if r.highlight else ""}" d="{_bar_path(mid, y, wr, bar_h)}"/>'
+                     f'<text class="val" x="{mid + wr + 8:.1f}" y="{cy}" dominant-baseline="central">{r.right}</text>')
+        parts.append(f'<g><title>{_e(r.tip or f"{r.label}: {r.left} {left_name.lower()}, {r.right} {right_name.lower()}")}</title>'
+                     f'<text class="lbl{" hl-text" if r.highlight else ""}" x="{label_w}" y="{cy}" text-anchor="end" '
+                     f'dominant-baseline="central">{_e(_clip(r.label, 26))}</text>{bars}</g>')
+    bottom = top + len(rows) * (bar_h + gap) - gap
+    parts.append(f'<line class="axis" x1="{mid:.1f}" x2="{mid:.1f}" y1="{top - 4}" y2="{bottom + 4}"/>')
+    return _svg(bottom + 10, title, desc, "".join(parts))
+
+
+# --------------------------------------------------------------------------- #
+# Action grid: recommended actions by effort and impact
+# --------------------------------------------------------------------------- #
+@dataclass
+class ActionMark:
+    n: int
+    effort: int
+    impact: int
+    tip: str
+
+
+def action_grid(marks: Sequence[ActionMark], *, title: str, desc: str) -> Markup:
+    spots = {(max(1, min(5, m.effort)), max(1, min(5, m.impact))) for m in marks}
+    if len(marks) < 2 or len(spots) < 2:  # all in one spot says nothing
+        return Markup("")
+    cell, left, top = 64, 64, 8
+    parts = []
+    for imp in range(1, 6):
+        for eff in range(1, 6):
+            x, y = left + (eff - 1) * cell, top + (5 - imp) * cell
+            level = (2 if eff <= 2 else 1) if imp >= 4 else 0  # quick wins darkest, then big bets
+            parts.append(f'<rect class="cell l{level}" x="{x + 1}" y="{y + 1}" width="{cell - 2}" height="{cell - 2}" rx="2"/>')
+        parts.append(f'<text class="tick" x="{left - 10}" y="{top + (5 - imp) * cell + cell / 2}" text-anchor="end" '
+                     f'dominant-baseline="central">{imp}</text>')
+    for eff in range(1, 6):
+        parts.append(f'<text class="tick" x="{left + (eff - 1) * cell + cell / 2}" y="{top + 5 * cell + 16}" '
+                     f'text-anchor="middle">{eff}</text>')
+    for label, col, row in (("Quick wins", 0, 0), ("Big bets", 2, 0), ("Fill-ins", 0, 2), ("Plan carefully", 2, 2)):
+        parts.append(f'<text class="zone" x="{left + col * cell + 6}" y="{top + row * cell + 14}">{label}</text>')
+    parts.append(f'<line class="axis" x1="{left + 2 * cell}" x2="{left + 2 * cell}" y1="{top}" y2="{top + 5 * cell}"/>'
+                 f'<line class="axis" x1="{left}" x2="{left + 5 * cell}" y1="{top + 2 * cell}" y2="{top + 2 * cell}"/>'
+                 f'<text class="axis-name" x="{left + 2.5 * cell}" y="{top + 5 * cell + 36}" text-anchor="middle">Effort</text>'
+                 f'<text class="axis-name" transform="translate({left - 40},{top + 2.5 * cell}) rotate(-90)" text-anchor="middle">Impact</text>')
+    slots: dict[tuple[int, int], int] = {}
+    for m in marks:
+        key = (max(1, min(5, m.effort)), max(1, min(5, m.impact)))
+        k = slots.get(key, 0)
+        slots[key] = k + 1
+        cx = left + (key[0] - 1) * cell + 14 + (k % 3) * 18
+        cy = top + (5 - key[1]) * cell + 26 + (k // 3) * 18
+        parts.append(f'<g><title>{_e(m.tip)}</title><circle class="pin" cx="{cx}" cy="{cy}" r="8.5"/>'
+                     f'<text class="pin-n" x="{cx}" y="{cy}" text-anchor="middle" dominant-baseline="central">{m.n}</text></g>')
+    return _svg(top + 5 * cell + 46, title, desc, "".join(parts), cls="narrow", width=left + 5 * cell + 16)
+
+
+__all__ = ["ActionMark", "Bar", "Diverge", "Event", "Point", "RiskMark", "Series", "Stack", "action_grid", "diverging",
+           "hbar", "lines", "money", "nice_max", "risk_matrix", "scatter", "stacked", "timeline"]

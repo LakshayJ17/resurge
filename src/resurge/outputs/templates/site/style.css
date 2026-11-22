@@ -117,6 +117,14 @@ table.t td.wide { min-width: 22ch; }
 .chart .hl-text { fill: var(--accent); font-weight: 600; }
 .chart .mark { fill: var(--bar); }
 .chart .mark.hl { fill: var(--accent); }
+.chart .mark.neg { fill: var(--bar-2); }
+.numbers { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 32px; }
+.num-tile { padding: 14px 0 18px; border-top: 1px solid var(--rule-2); }
+.num-tile p { margin: 0; }
+.num-v { font: 600 28px/1.15 var(--serif); color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.num-l { margin-top: 6px !important; font-size: 14px; font-weight: 600; color: var(--ink); }
+.num-d { margin-top: 2px !important; font-size: 13px; color: var(--muted); }
+.chart .zone { fill: var(--muted); font-size: 11px; font-weight: 600; }
 .chart .grid { stroke: var(--rule); stroke-width: 1; }
 .chart .axis { stroke: var(--rule-2); stroke-width: 1; }
 .chart .lane { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 4; }

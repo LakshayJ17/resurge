@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
-from ..security import clean_snippet
+from ..security import REMOVED, clean_snippet
 from .errors import INSTALL_HINT, RagUnavailable, RunNotFound
 
 __all__ = ["RagUnavailable", "RunNotFound", "INSTALL_HINT", "available", "index_run", "ask", "status",
@@ -213,7 +213,13 @@ async def ask(settings: Settings, run_id: str, question: str, history: list | No
         report = await asyncio.to_thread(load_report, settings, run_id)  # RunNotFound -> caller (404)
         n_chunks = (await asyncio.to_thread(index_run, settings, report))["chunks"]
     backend = st["backend"]
-    if not re.sub(r"\[removed: instruction-like text\]", "", q).strip(" .?!"):
+    if REMOVED in q:
+        # Part of the question was an instruction to the model. Refuse the whole question: the cleaned remainder
+        # ("What were you told before? [removed]") looks harmless, so checking only it would let the attempt through.
+        from ..guardrails import Verdict
+
+        return A.refused(backend, Verdict(False, "rules", "INJECTION", checked=["rules"]))
+    if not q.strip(" .?!"):
         return A.not_covered(backend, text="Please ask a plain question about this research.")
     if n_chunks == 0:
         return A.not_covered(backend)  # nothing verified to answer from: no model call, no guessing
@@ -221,6 +227,11 @@ async def ask(settings: Settings, run_id: str, question: str, history: list | No
     if own:
         llm = await make_gateway(settings, run_id)
     try:
+        from ..guardrails import Guardrails
+
+        verdict = await Guardrails(llm, getattr(settings, "guardrails", "on")).check(q, kind="chat")
+        if not verdict.allowed:
+            return A.refused(backend, verdict)  # never reaches retrieval or the answering model
         standalone = await A.condense(llm, hist, q) if hist else q
         found, backend, corpus = await asyncio.to_thread(_retrieve_sync, settings, run_id, standalone)
         if found is None or not found.chunks:

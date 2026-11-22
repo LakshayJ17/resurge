@@ -35,3 +35,9 @@ def _no_model_downloads(monkeypatch):
     except Exception:  # noqa: BLE001 - the 'rag' extra is optional
         return
     monkeypatch.setattr(embed, "_OVERRIDE", _TinyEmbedder())
+
+
+@pytest.fixture(autouse=True)
+def _guardrail_models_off(monkeypatch):
+    """Model guardrails make network calls; tests that need them install a fake gateway (tests/test_guardrails.py)."""
+    monkeypatch.setenv("RESURGE_GUARDRAILS", "off")

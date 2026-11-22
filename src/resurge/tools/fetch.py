@@ -51,6 +51,7 @@ from .compliance import (
     looks_paywalled,
     tos_blocked,
 )
+from .http import BlockedAddressError
 from .http import (
     MAX_RESPONSE_BYTES,
     HostThrottle,
@@ -353,6 +354,9 @@ class PageFetcher:
                 return Page(url=url, error="too_many_redirects", fetched_via=VIA_DIRECT), False
             except (httpx.InvalidURL, httpx.UnsupportedProtocol):
                 return Page(url=url, error="invalid_url", fetched_via=VIA_DIRECT), False
+            except BlockedAddressError:
+                count("blocked_private_address")
+                return Page(url=url, error="blocked_private_address", fetched_via="policy"), False
             except httpx.HTTPError as exc:
                 return Page(url=url, error=f"network_error:{type(exc).__name__}", fetched_via=VIA_DIRECT), True
             if res.status not in (429, 503):
