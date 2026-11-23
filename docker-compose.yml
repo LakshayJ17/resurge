@@ -10,7 +10,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      RESURGE_TRUST_PROXY: "1"   # the app is only reachable through Caddy or the tunnel, which set client-IP headers
+      # the app is only reachable through Caddy or the tunnel, which set the client-IP header. Caddy: 1 (reads
+      # X-Forwarded-For); Cloudflare Tunnel: set RESURGE_TRUST_PROXY=cloudflare in .env (reads CF-Connecting-IP)
+      RESURGE_TRUST_PROXY: ${RESURGE_TRUST_PROXY:-1}
     volumes:
       - resurge-data:/data
     ports:

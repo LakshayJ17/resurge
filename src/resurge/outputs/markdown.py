@@ -169,7 +169,7 @@ class _Writer:
         self.add(md_table([m.label for m in hero], [[m.display for m in hero]], ["c"] * len(hero)))
 
     def toc(self, sections: list[str]) -> None:
-        self.add("## Contents", "\n".join(f"{i}. [{s}](#{github_slug(s)})" for i, s in enumerate(sections, 1)))
+        self.add("## Contents", "\n".join(f"{i}. [{md_text(s)}](#{github_slug(s)})" for i, s in enumerate(sections, 1)))
 
     def about(self) -> bool:
         r, es = self.r, self.r.executive_summary

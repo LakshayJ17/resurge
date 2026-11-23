@@ -58,7 +58,8 @@ _REUSED = re.compile(r"Reusing (\d+) verified facts")
 _HANDOFF = re.compile(r"(\d+) verified facts handed")
 _DIMENSIONS = re.compile(r"\(([a-z_]+(?:, [a-z_]+)*)\)$")
 _FILE_LINE = re.compile(r"^[a-z_]+: (?:/|[A-Za-z]:\\)")  # "pdf: /srv/reports/…/report.pdf"
-_ABS_PATH = re.compile(r"(?:(?<=\s)|^)(?:/[\w.\-]+){2,}/?|[A-Za-z]:\\[^\s]+")
+# absolute paths wherever they appear ('…/x', (…/x), =/x, ~/x), but not the path part of a URL (after ":" or "/")
+_ABS_PATH = re.compile(r"(?<![\w.:/])~?(?:/[\w.\-]+){2,}/?|(?<![\w])[A-Za-z]:\\[^\s'\")]+")
 _TECH_AGENTS = ("Model Router", "Chief Technology Officer")
 # What a finished step produced, shown under its title: (step, pattern, template)
 _RESULTS = (

@@ -55,6 +55,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from .. import guardrails as G
@@ -62,7 +63,7 @@ from ..config import load_settings
 from ..input_guard import INJECTION_REPLY, InputRejected, screen_brief_inputs, screen_chat, website_input
 from ..schemas import Depth, ResearchBrief, ResearchReport
 from ..storage import Storage
-from .accounts import AccountError, Accounts, RateLimiter, User, start_of_day
+from .accounts import AccountError, Accounts, RateLimiter, User, canonical_email, start_of_day
 from .app import ChatRequest
 from .progress import PHASES, depth_of, summarize
 
@@ -80,6 +81,69 @@ DOWNLOADS = {"report.pdf": "Full report (PDF)", "report.pptx": "Slide deck"}
 # the Ask page). No Markdown: nobody downloads it from the web app.
 HOSTED_FORMATS = {"charts", "html", "pdf", "pptx", "json", "site"}
 NO_STORE = {"Cache-Control": "no-store"}
+SECURITY_HEADERS = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "X-Frame-Options": "DENY",
+                    "Cross-Origin-Opener-Policy": "same-origin",
+                    "Permissions-Policy": "camera=(), microphone=(), geolocation=()"}
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+# files a run folder may serve: the report page, its site, charts and the downloads (never report.json or anything
+# else a run might leave there)
+SERVABLE_SUFFIXES = frozenset({".html", ".pdf", ".pptx", ".png", ".md"})
+_TRUSTED_PROXY_VALUES = ("1", "true", "yes", "caddy", "cloudflare")
+
+
+def _origin_of(url: str) -> str:
+    """``scheme://host[:port]`` (lower case) of a URL, or "" when it has no scheme or host (e.g. ``Origin: null``)."""
+    try:
+        parts = urlparse(url.strip())
+    except ValueError:
+        return ""
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return ""
+    return f"{parts.scheme}://{parts.netloc.lower()}"
+
+
+def _hostname(host_header: str) -> str:
+    """The name part of a Host header (no port, no IPv6 brackets), lower case."""
+    host = host_header.strip().lower()
+    if host.startswith("["):
+        return host[1:host.find("]")] if "]" in host else ""
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+
+
+class BodyLimit:
+    """Refuses request bodies over ``max_bytes`` while they stream in. A Content-Length check alone misses chunked
+    uploads, which the framework would otherwise read (and parse) in full before any handler ran."""
+
+    def __init__(self, app, max_bytes: int) -> None:
+        self.app, self.max_bytes = app, max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        chunks, size = [], 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            body = message.get("body", b"")
+            size += len(body)
+            if size > self.max_bytes:
+                resp = JSONResponse({"detail": "Request too large."}, status_code=413,
+                                    headers={**SECURITY_HEADERS, **NO_STORE, "Connection": "close"})
+                return await resp(scope, receive, send)
+            chunks.append(body)
+            if not message.get("more_body", False):
+                break
+        replayed = False
+
+        async def replay():
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
+            return await receive()
+
+        return await self.app(scope, replay, send)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -109,7 +173,13 @@ class HostedConfig:
     turnstile_site_key: str = field(default_factory=lambda: os.getenv("TURNSTILE_SITE_KEY", "").strip())
     turnstile_secret: str = field(default_factory=lambda: os.getenv("TURNSTILE_SECRET_KEY", "").strip())
     public_url: str = field(default_factory=lambda: os.getenv("RESURGE_PUBLIC_URL", "").strip().rstrip("/"))
-    trust_proxy: bool = field(default_factory=lambda: os.getenv("RESURGE_TRUST_PROXY", "0") == "1")
+    # behind Caddy (or any proxy that sets X-Forwarded-For): "1"; behind a Cloudflare Tunnel: "cloudflare"
+    trust_proxy: bool = field(default_factory=lambda: os.getenv("RESURGE_TRUST_PROXY", "0").strip().lower()
+                              in _TRUSTED_PROXY_VALUES)
+    proxy_kind: str = field(default_factory=lambda: "cloudflare" if os.getenv("RESURGE_TRUST_PROXY", "").strip()
+                            .lower() == "cloudflare" else "forwarded")
+    # extra Host names the server answers to (besides localhost and the RESURGE_PUBLIC_URL host), e.g. a LAN address
+    allowed_hosts: set[str] = field(default_factory=lambda: _env_set("RESURGE_ALLOWED_HOSTS"))
     private_mode: bool = field(default_factory=lambda: os.getenv("RESURGE_PRIVATE", "0") == "1")
     pwned_check: bool = field(default_factory=lambda: os.getenv("RESURGE_PWNED_CHECK", "1") != "0")
     guard_strikes: int = field(default_factory=lambda: _env_int("RESURGE_GUARD_STRIKES", 5))
@@ -273,12 +343,41 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     workers: list[asyncio.Task] = []
     guard_state: dict = {"llm": None, "tried": 0.0}
     guard_lock = asyncio.Lock()
+    running: dict[str, asyncio.Task] = {}
+    hashing = asyncio.Semaphore(4)  # password hashing runs in threads, at most four at once
 
-    from ..outputs.html_report import SCRIPT_HASH as PRINT_SCRIPT_HASH
-    from ..outputs.site import ASK_SCRIPT
-    report_csp = ("default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; connect-src 'self'; "
-                  f"script-src '{_sha(ASK_SCRIPT)}' '{PRINT_SCRIPT_HASH.removeprefix(chr(39)).removesuffix(chr(39))}'; "
-                  "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+    for url in (cfg.public_url, *cfg.extra_origins):
+        if url and not _origin_of(url):
+            raise ValueError(f"{url!r} must be a full address such as https://example.org (RESURGE_PUBLIC_URL / "
+                             "RESURGE_ALLOWED_ORIGINS)")
+    allowed_origins = {_origin_of(u) for u in (cfg.public_url, *cfg.extra_origins) if u}
+    allowed_hosts = (set(LOOPBACK_HOSTS) | {_hostname(urlparse(u).netloc) for u in allowed_origins}
+                     | {h.strip().lower() for h in cfg.allowed_hosts if h.strip()})
+
+    async def hashed(fn, *args):
+        """Run a password-hashing call off the event loop (scrypt takes tens of ms and would stall every request)."""
+        async with hashing:
+            return await run_in_threadpool(fn, *args)
+
+    def purge_run(run_id: str) -> None:
+        """Remove everything a deleted account's run left behind: report files, research records, chat index."""
+        row = storage.get_run(run_id)
+        d = Path(row["report_dir"]).resolve() if row and row.get("report_dir") else None
+        if d and Path(settings.reports_dir).resolve() in d.parents and d.is_dir():
+            shutil.rmtree(d, ignore_errors=True)
+        try:
+            storage.delete_run(run_id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("could not delete records of %s: %s", run_id, type(e).__name__)
+        try:
+            from .. import rag
+
+            rag.forget_run(settings, run_id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("could not drop the chat index of %s: %s", run_id, type(e).__name__)
+
+    from .app import report_csp as _report_csp
+    report_csp = _report_csp()
 
     # ---------------------------------------------------------------- engine
     async def worker() -> None:
@@ -296,8 +395,23 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
                 # reports folders this app serves from, and the per-run private flag must not leak into `settings`.
                 s = replace(settings)
                 s.private_mode = s.private_mode or cfg.private_mode
+                task = asyncio.create_task(ResurgeCompany(s, storage).run(brief, run_id=run_id,
+                                                                        formats=set(HOSTED_FORMATS)))
+                running[run_id] = task
                 try:
-                    await ResurgeCompany(s, storage).run(brief, run_id=run_id, formats=set(HOSTED_FORMATS))
+                    try:
+                        await asyncio.wait({task})
+                    except asyncio.CancelledError:  # the server is stopping
+                        task.cancel()
+                        raise
+                    finally:
+                        running.pop(run_id, None)
+                    gone = (accounts.job(run_id) or {}).get("status") in (None, "cancelled")
+                    if task.cancelled() or gone:  # the account was deleted while it ran
+                        await asyncio.to_thread(purge_run, run_id)
+                        continue
+                    if task.exception() is not None:
+                        raise task.exception()
                     row = storage.get_run(run_id) or {}
                     ok = row.get("status") == "done"
                     accounts.set_job(run_id, status="done" if ok else "failed", finished_at=time.time(),
@@ -336,8 +450,14 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
 
     # --------------------------------------------------------------- helpers
     def client_ip(request: Request) -> str:
+        """The visitor's address. Behind a trusted proxy, only the header that proxy itself sets is read: Cloudflare
+        overwrites CF-Connecting-IP, while Caddy appends the address it saw to X-Forwarded-For (so the last entry is
+        the real one; anything before it came from the visitor and could be made up)."""
         if cfg.trust_proxy:
-            ip = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for", "").split(",")[0]
+            if cfg.proxy_kind == "cloudflare":
+                ip = request.headers.get("cf-connecting-ip", "")
+            else:
+                ip = request.headers.get("x-forwarded-for", "").split(",")[-1]
             if ip.strip():
                 return ip.strip()[:64]
         return (request.client.host if request.client else "unknown")[:64]
@@ -347,7 +467,9 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
             cfg.trust_proxy and request.headers.get("x-forwarded-proto") == "https")
 
     def session_token(request: Request) -> str | None:
-        return request.cookies.get(SECURE_COOKIE) or request.cookies.get(COOKIE)
+        # over HTTPS only the __Host- cookie counts: a plain cookie could have been planted by a sibling subdomain or
+        # over plain HTTP, which would log the visitor into someone else's account
+        return request.cookies.get(SECURE_COOKIE) if secure_cookies(request) else request.cookies.get(COOKIE)
 
     def current_user(request: Request) -> User | None:
         return accounts.session_user(session_token(request))
@@ -358,16 +480,21 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
             raise HTTPException(401, "Please log in.")
         return user
 
+    def own_origin(request: Request) -> str:
+        scheme = request.url.scheme
+        if cfg.trust_proxy and request.headers.get("x-forwarded-proto") in ("http", "https"):
+            scheme = request.headers["x-forwarded-proto"]
+        return _origin_of(f"{scheme}://{request.headers.get('host', '')}")
+
     def same_origin(request: Request) -> None:
-        """Every state-changing request must come from this site (CSRF defence on top of SameSite cookies)."""
-        source = request.headers.get("origin") or request.headers.get("referer")
+        """Every state-changing request must come from this site (CSRF defence on top of SameSite cookies). The whole
+        origin must match (scheme, host and port); with RESURGE_PUBLIC_URL set, only that origin (and the configured
+        extras) is accepted, otherwise the server's own origin, whose host has already passed the Host allowlist."""
+        source = _origin_of(request.headers.get("origin") or request.headers.get("referer") or "")
         if not source:
             raise HTTPException(403, "Request refused: missing origin.")
-        allowed = {request.headers.get("host", "")}
-        if cfg.public_url:
-            allowed.add(urlparse(cfg.public_url).netloc)
-        allowed |= {urlparse(o).netloc for o in cfg.extra_origins}
-        if urlparse(source).netloc not in allowed:
+        allowed = set(allowed_origins) if cfg.public_url else {own_origin(request), *allowed_origins}
+        if source not in allowed:
             raise HTTPException(403, "Request refused: it did not come from this site.")
 
     def owned_job(user: User, run_id: str) -> dict:
@@ -414,7 +541,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     def remaining_today(user: User) -> int | None:
         if user.is_admin:
             return None  # no limit
-        return max(0, cfg.runs_per_user_day - accounts.jobs_since(start_of_day(), user_id=user.id))
+        return max(0, cfg.runs_per_user_day - accounts.jobs_since(start_of_day(), email=user.email))
 
     def session_view(user: User | None) -> dict:
         conf = {"signup_open": cfg.signup_open, "turnstile_site_key": cfg.turnstile_site_key if cfg.turnstile else "",
@@ -444,21 +571,30 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
+        # DNS rebinding: a page on another site can point its own name at this server; refuse unknown Host names
+        if _hostname(request.headers.get("host", "")) not in allowed_hosts:
+            return JSONResponse({"detail": "Unknown host."}, status_code=421, headers={**SECURITY_HEADERS, **NO_STORE})
         try:
             length = int(request.headers.get("content-length") or 0)
         except ValueError:
             length = MAX_BODY + 1
         if length > MAX_BODY:
-            return JSONResponse({"detail": "Request too large."}, status_code=413)
+            return JSONResponse({"detail": "Request too large."}, status_code=413,
+                                headers={**SECURITY_HEADERS, **NO_STORE})
         resp = await call_next(request)
-        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
-        resp.headers.setdefault("Referrer-Policy", "same-origin")
-        resp.headers.setdefault("X-Frame-Options", "DENY")
-        resp.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
-        resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        for k, v in SECURITY_HEADERS.items():
+            resp.headers.setdefault(k, v)
         if secure_cookies(request):
             resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return resp
+
+    app.add_middleware(BodyLimit, max_bytes=MAX_BODY)
+
+    @app.exception_handler(Exception)
+    async def crashed(request: Request, exc: Exception):
+        log.warning("unhandled error on %s: %s", request.url.path, type(exc).__name__)
+        return JSONResponse({"detail": "Something went wrong. Please try again."}, status_code=500,
+                            headers={**SECURITY_HEADERS, **NO_STORE})
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
@@ -509,7 +645,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         if cfg.pwned_check and len(body.password) >= 10 and await pwned_count(body.password) > 0:
             return fail("That password has appeared in a known data breach. Please choose another.")
         try:
-            user = accounts.create_user(body.email, body.password, ip)
+            user = await hashed(accounts.create_user, body.email, body.password, ip)
         except AccountError as e:
             return fail(str(e))
         resp = reply(session_view(user), 201)
@@ -520,12 +656,12 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     async def login(request: Request, body: LoginBody):
         same_origin(request)
         ip = client_ip(request)
-        key = body.email.strip().lower()[:120]
+        key = canonical_email(body.email)[:120]  # the same identity the account lookup uses
         if not limiter.hit(f"login-ip:{ip}", 20, 900) or not limiter.hit(f"login-email:{key}", 8, 900):
             accounts.audit("login_throttled", email=key, ip=ip)
-            return fail("Too many attempts. Wait 15 minutes and try again.", 429)
+            return fail("Too many attempts. Please wait a while and try again.", 429)
         try:
-            user = accounts.authenticate(body.email, body.password, ip)
+            user = await hashed(accounts.authenticate, body.email, body.password, ip)
         except AccountError as e:
             return fail(str(e))
         resp = reply(session_view(user))
@@ -553,7 +689,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         if cfg.pwned_check and len(body.new) >= 10 and await pwned_count(body.new) > 0:
             return fail("That password has appeared in a known data breach. Please choose another.")
         try:
-            accounts.change_password(user.id, body.current, body.new, client_ip(request))
+            await hashed(accounts.change_password, user.id, body.current, body.new, client_ip(request))
         except AccountError as e:
             return fail(str(e))
         resp = reply({"ok": True, "message": "Password changed. You have been logged out everywhere else."})
@@ -579,14 +715,15 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         if not limiter.hit(f"delete:{user.id}", 5, 900):
             return fail("Too many attempts. Wait 15 minutes.", 429)
         try:
-            run_ids = accounts.delete_user(user.id, body.password, client_ip(request))
+            run_ids = await hashed(accounts.delete_user, user.id, body.password, client_ip(request))
         except AccountError as e:
             return fail(str(e))
         for run_id in run_ids:  # remove the reports too: deleting an account deletes its data
-            row = storage.get_run(run_id)
-            d = Path(row["report_dir"]).resolve() if row and row.get("report_dir") else None
-            if d and Path(settings.reports_dir).resolve() in d.parents and d.is_dir():
-                shutil.rmtree(d, ignore_errors=True)
+            task = running.get(run_id)
+            if task is not None:
+                task.cancel()  # the worker removes what the run wrote once it has stopped
+            else:
+                await asyncio.to_thread(purge_run, run_id)
         resp = reply({"ok": True, "message": "Your account, your analyses and their reports have been deleted."})
         clear_session(resp)
         return resp
@@ -622,28 +759,6 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
             accounts.audit("input_blocked" if e.suspicious else "input_rejected", user_id=user.id, email=user.email,
                            ip=ip, detail=str(e)[:120])
             return fail(str(e))
-        dup = accounts.active_duplicate(user.id, name)
-        if dup:  # double click or reload: show the analysis that is already running
-            return reply({"run_id": dup["run_id"], "existing": True})
-        if not user.is_admin:
-            today = start_of_day()
-            if accounts.jobs_since(today) >= cfg.runs_total_day:
-                return fail("Today's free research capacity is used up. Please come back tomorrow.", 429)
-            if accounts.jobs_since(today, user_id=user.id) >= cfg.runs_per_user_day:
-                return fail(f"You have used your {cfg.runs_per_user_day} analyses for today. More tomorrow.", 429)
-            if accounts.jobs_since(today, ip=ip) >= cfg.runs_per_ip_day:
-                return fail("Your network has reached today's analysis limit. More tomorrow.", 429)
-            if len(accounts.queued_jobs()) >= cfg.max_queue:
-                return fail("The queue is full right now. Please try again in an hour.", 429)
-        # model guardrails run last, so requests refused by the cheap checks above cost no model calls
-        verdict = await G.Guardrails(await guard_llm(), settings.guardrails).check(G.request_text(name, comps, qs))
-        if not verdict.allowed:
-            event = "guardrail_unavailable" if verdict.category == "UNAVAILABLE" else "guardrail_blocked"
-            accounts.audit(event, user_id=user.id, email=user.email, ip=ip, detail=f"request {verdict.summary()}")
-            return fail(verdict.message, 503 if verdict.category == "UNAVAILABLE" else 400)
-        if verdict.degraded:
-            accounts.audit("guardrail_degraded", user_id=user.id, email=user.email, ip=ip,
-                           detail="request checked by: " + ", ".join(verdict.checked))
         from ..mcp_server import untrusted_brief
         from ..pipeline.orchestrator import new_run_id
 
@@ -653,7 +768,34 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         except ValueError:
             return fail("Enter the name of a company, product or market.")
         run_id = new_run_id(brief.target)
-        accounts.add_job(run_id, user.id, brief.target, brief.model_dump(mode="json"), ip)
+        # check every limit and hold the slot in one step, before the (slow) model checks: otherwise parallel
+        # requests would all pass the checks while none of them had been counted yet
+        held = accounts.reserve_job(run_id, user, brief.target, brief.model_dump(mode="json"), ip,
+                                    per_user=cfg.runs_per_user_day, per_ip=cfg.runs_per_ip_day,
+                                    total=cfg.runs_total_day, max_queue=cfg.max_queue)
+        if isinstance(held, dict):  # double click or reload: show the analysis that is already running
+            return reply({"run_id": held["run_id"], "existing": True})
+        if held is not None:
+            return fail({"total": "Today's free research capacity is used up. Please come back tomorrow.",
+                         "user": f"You have used your {cfg.runs_per_user_day} analyses for today. More tomorrow.",
+                         "ip": "Your network has reached today's analysis limit. More tomorrow.",
+                         "queue": "The queue is full right now. Please try again in an hour."}[held], 429)
+        # model guardrails run last, so requests refused by the cheap checks above cost no model calls
+        try:
+            verdict = await G.Guardrails(await guard_llm(), settings.guardrails).check(G.request_text(name, comps, qs))
+        except BaseException:
+            accounts.drop_job(run_id)
+            raise
+        if not verdict.allowed:
+            accounts.drop_job(run_id)
+            event = "guardrail_unavailable" if verdict.category == "UNAVAILABLE" else "guardrail_blocked"
+            accounts.audit(event, user_id=user.id, email=user.email, ip=ip, detail=f"request {verdict.summary()}")
+            return fail(verdict.message, 503 if verdict.category == "UNAVAILABLE" else 400)
+        if verdict.degraded:
+            accounts.audit("guardrail_degraded", user_id=user.id, email=user.email, ip=ip,
+                           detail="request checked by: " + ", ".join(verdict.checked))
+        if not accounts.confirm_job(run_id):  # the account was deleted meanwhile
+            return fail("Please log in.", 401)
         accounts.audit("analysis_started", user_id=user.id, email=user.email, ip=ip,
                        detail=brief.target + (f" ({brief.target_url})" if brief.target_url else ""))
         await queue.put(run_id)
@@ -701,9 +843,15 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         row = storage.get_run(run_id)
         if not row or not row.get("report_dir"):
             raise HTTPException(404, "Not found.")
-        base = Path(row["report_dir"]).resolve()
-        path = (base / name).resolve()
-        if base not in path.parents or not path.is_file() or path.name == "report.json":
+        if "\x00" in name or "\\" in name:
+            raise HTTPException(404, "Not found.")
+        try:
+            base = Path(row["report_dir"]).resolve()
+            path = (base / name).resolve()
+        except (OSError, ValueError):
+            raise HTTPException(404, "Not found.") from None
+        # an allowlist of file types (the comparison is case-insensitive, like macOS's file system)
+        if base not in path.parents or not path.is_file() or path.suffix.lower() not in SERVABLE_SUFFIXES:
             raise HTTPException(404, "Not found.")
         resp = FileResponse(path)
         resp.headers["Cache-Control"] = "private, no-store"
@@ -784,7 +932,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     async def admin_user(request: Request, user_id: int, action: str):
         same_origin(request)
         user = require_user(request)
-        if not user.is_admin or action not in ("disable", "enable") or user_id == user.id:
+        if not user.is_admin or action not in ("disable", "enable") or user_id == user.id or not 0 < user_id < 2 ** 53:
             raise HTTPException(404, "Not found.")
         accounts.set_disabled(user_id, action == "disable", by=user.email)
         return reply()

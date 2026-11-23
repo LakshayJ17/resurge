@@ -403,7 +403,7 @@ def test_web_chat_endpoints(env, monkeypatch):
         return llm
 
     monkeypatch.setattr(rag, "make_gateway", fake_gateway)
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://127.0.0.1:8765")  # the dashboard answers local names only
     base = f"/api/runs/{r.run_id}/chat"
     assert client.get(base + "/status").json() == {"indexed": False, "chunks": 0, "backend": "qdrant-local"}
     res = client.post(base, json={"question": "What does Atlas Docs charge?",

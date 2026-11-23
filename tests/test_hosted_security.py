@@ -29,16 +29,17 @@ def test_lockout_grows_persists_across_restarts_and_resets_on_success(tmp_path):
     acc.create_user("ana@example.com", PW)
     for _ in range(acc_mod.LOCK_AFTER):
         with pytest.raises(AccountError, match="Wrong email or password"):
-            acc.authenticate("ana@example.com", "wrong password!!")
+            acc.authenticate("ana@example.com", "wrong password!!", "203.0.113.9")
     restarted = Accounts(db)  # a new process: the lock must survive
-    with pytest.raises(AccountError, match="Too many failed attempts"):
-        restarted.authenticate("ana@example.com", PW)  # even the right password is refused while locked
-    restarted._exec("UPDATE users SET locked_until=0")  # noqa: SLF001 - lock expires
-    assert restarted.authenticate("ana@example.com", PW).email == "ana@example.com"
-    row = restarted._one("SELECT failed_logins FROM users")  # noqa: SLF001
-    assert row["failed_logins"] == 0
+    with pytest.raises(AccountError, match="Too many attempts"):
+        restarted.authenticate("ana@example.com", PW, "203.0.113.9")  # even the right password, from that network
+    # the guesser only locked their own network out: the owner elsewhere still gets in
+    assert restarted.authenticate("ana@example.com", PW, "198.51.100.7").email == "ana@example.com"
+    restarted._exec("UPDATE login_failures SET locked_until=0")  # noqa: SLF001 - lock expires
+    assert restarted.authenticate("ana@example.com", PW, "203.0.113.9").email == "ana@example.com"
+    assert restarted._one("SELECT COUNT(*) AS n FROM login_failures")["n"] == 0  # noqa: SLF001 - reset on success
     events = [e["event"] for e in restarted.recent_audit()]
-    assert "lockout" in events and "login" in events and "login_locked" in events
+    assert "login" in events and "login_locked" in events
 
 
 def test_unknown_accounts_get_the_same_answer(tmp_path):
@@ -102,7 +103,8 @@ def test_login_rotates_the_session_token(make_client):
 def test_https_deployments_use_host_prefixed_secure_cookies(make_client):
     client, _ = make_client(public_url="https://resurge.example.org")
     with client:
-        r = signup(client)
+        r = client.post("/api/signup", json={"email": "ana@example.com", "password": PW},
+                        headers={"Origin": "https://resurge.example.org"})
         cookie = r.headers["set-cookie"]
         assert cookie.startswith("__Host-resurge_session=") and "Secure" in cookie and "HttpOnly" in cookie
 
@@ -137,7 +139,9 @@ def test_account_deletion_removes_jobs_and_reports(make_client):
         assert client.post("/api/account/delete", json={"password": "wrong!!", "confirm": "DELETE"}, headers=ORIGIN).status_code == 400
         r = client.post("/api/account/delete", json={"password": PW, "confirm": "DELETE"}, headers=ORIGIN)
         assert r.status_code == 200 and "deleted" in r.json()["message"]
-        assert app.state.accounts.job(run_id) is None and app.state.accounts.count_users() == 0
+        job = app.state.accounts.job(run_id)  # kept only as an anonymous usage record
+        assert job["user_id"] == 0 and job["target"] == "" and job["brief"] == "{}"
+        assert app.state.accounts.count_users() == 0
         assert not any((report_dir.parent / "reports").glob(f"{run_id}*"))
         assert me(client) is None
         assert login(client).status_code == 400
@@ -152,7 +156,8 @@ def test_admin_can_disable_an_account_and_others_cannot(make_client):
         victim = app.state.accounts.list_users()[0]["id"]
         assert client.post(f"/api/admin/users/{victim}/disable", headers=ORIGIN).status_code == 404  # not an admin
         boss = TestClient(app)
-        signup(boss, "boss@example.com")
+        app.state.accounts.make_admin("boss@example.com", PW)  # admins are made from the command line
+        login(boss, "boss@example.com")
         assert boss.post(f"/api/admin/users/{victim}/disable", headers=ORIGIN).status_code == 200
         assert me(client) is None  # her session was revoked
         r = login(client)

@@ -33,7 +33,7 @@ import time
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from typing import Any, Literal
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 import httpx
 import trafilatura
@@ -55,6 +55,7 @@ from .http import BlockedAddressError
 from .http import (
     MAX_RESPONSE_BYTES,
     HostThrottle,
+    HttpResult,
     ResponseTooLarge,
     get_throttle,
     host_of,
@@ -66,6 +67,9 @@ from .http import (
 )
 from .search.base import clean_text, parse_date, truncate_text
 from .sources import canonical_key, is_http_url, normalize_url
+
+MAX_REDIRECTS = 8
+REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
 log = logging.getLogger(__name__)
 
@@ -335,7 +339,38 @@ class PageFetcher:
         return await self._fallbacks(url, norm, client, first=direct, pdf=direct.error == "pdf_unsupported")
 
     async def _direct(self, url: str, norm: str, client: httpx.AsyncClient) -> tuple[Page, bool]:
-        """Polite GET + trafilatura. Returns ``(page, third_party_fallback_allowed)``."""
+        """Polite GET + trafilatura. Returns ``(page, third_party_fallback_allowed)``.
+
+        Redirects are followed here, one hop at a time, so every hop gets the same checks as the first URL: the
+        no-fetch list, robots.txt, the host's circuit breaker and politeness delay (and, in the client, the address
+        guard). Letting httpx follow them would fetch whatever site a page redirects to."""
+        current = norm
+        for _hop in range(MAX_REDIRECTS + 1):
+            res = await self._get_once(url, current, client)
+            if isinstance(res, tuple):
+                return res
+            location = res.headers.get("location", "").strip()
+            if res.status not in REDIRECT_STATUSES or not location:
+                break
+            nxt = normalize_url(urljoin(res.final_url or current, location))
+            if not is_http_url(nxt):
+                return Page(url=url, final_url=res.final_url, status=res.status, error="invalid_url",
+                            fetched_via=VIA_DIRECT), False
+            if tos_blocked(nxt):
+                count("redirect_refused")
+                return self._refused(url, "tos_nofetch"), False
+            if self.guard.is_open(nxt) or self.guard.skipped(nxt):
+                return self._refused(url, "host_circuit_open"), False
+            if not await self.robots.allowed(nxt, client, throttle=self.throttle):
+                count("redirect_refused")
+                return self._refused(url, "robots_disallowed"), False
+            current = nxt
+        else:
+            return Page(url=url, error="too_many_redirects", fetched_via=VIA_DIRECT), False
+        return await self._read_page(url, current, res)
+
+    async def _get_once(self, url: str, norm: str, client: httpx.AsyncClient) -> HttpResult | tuple[Page, bool]:
+        """One GET of ``norm`` without following redirects (with one Retry-After retry); a tuple means give up."""
         cfg = get_policy()
         host = host_of(norm)
         headers = {"User-Agent": user_agent_for(norm)}
@@ -345,7 +380,7 @@ class PageFetcher:
                 async with self.throttle.slot(host):
                     res = await asyncio.wait_for(
                         request(client, "GET", norm, headers=headers, max_bytes=self.max_bytes, truncate=True,
-                                accept_body=_accept_body),
+                                accept_body=_accept_body, follow_redirects=False),
                         timeout=self.timeout_s + 5,
                     )
             except (TimeoutError, httpx.TimeoutException):
@@ -360,7 +395,7 @@ class PageFetcher:
             except httpx.HTTPError as exc:
                 return Page(url=url, error=f"network_error:{type(exc).__name__}", fetched_via=VIA_DIRECT), True
             if res.status not in (429, 503):
-                break
+                return res
             opened = self.guard.record_block(norm, res.status)
             wait = parse_retry_after(res.headers)
             if attempt == 1 and not opened and wait is not None and wait <= cfg.retry_after_max_s:
@@ -372,6 +407,10 @@ class PageFetcher:
             error = "rate_limited" if res.status == 429 else "service_unavailable"
             return Page(url=url, final_url=res.final_url, status=res.status, error=error, fetched_via=VIA_DIRECT), False
         assert res is not None
+        return res
+
+    async def _read_page(self, url: str, norm: str, res: HttpResult) -> tuple[Page, bool]:
+        """Turn the final response into a page (or the reason there is none)."""
         base = {"url": url, "final_url": res.final_url, "status": res.status, "fetched_via": VIA_DIRECT}
         status, ctype = res.status, res.content_type
         if status in (401, 403):

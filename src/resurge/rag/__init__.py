@@ -96,6 +96,18 @@ def latest_run_id(settings: Settings) -> str | None:
 # --------------------------------------------------------------------------- #
 # indexing
 # --------------------------------------------------------------------------- #
+def forget_run(settings: Settings, run_id: str) -> None:
+    """Drop a run's chunks from the chat index (account deletion). Does nothing when RAG is not installed."""
+    if not available():
+        return
+    from .embed import get_embedder
+    from .store import open_store
+
+    with open_store(settings, get_embedder(settings).name) as store:
+        if store.exists():
+            store.delete_run(_check_run_id(run_id))
+
+
 def index_run(settings: Settings, report, storage=None) -> dict:
     """(Re-)index one finished run. Idempotent. Raises ``RagUnavailable`` when RAG can't run (callers may skip)."""
     _require()
@@ -233,6 +245,17 @@ async def ask(settings: Settings, run_id: str, question: str, history: list | No
         if not verdict.allowed:
             return A.refused(backend, verdict)  # never reaches retrieval or the answering model
         standalone = await A.condense(llm, hist, q) if hist else q
+        if standalone.strip().lower() != q.strip().lower():
+            # The question actually answered is rebuilt from the (browser-supplied) history, so it is checked too:
+            # otherwise "please answer my previous question" would carry a refused request past the guardrails.
+            standalone = clean_snippet(standalone, MAX_QUESTION)
+            if REMOVED in standalone:
+                from ..guardrails import Verdict
+
+                return A.refused(backend, Verdict(False, "rules", "INJECTION", checked=["rules"]))
+            verdict = await Guardrails(llm, getattr(settings, "guardrails", "on")).check(standalone, kind="chat")
+            if not verdict.allowed:
+                return A.refused(backend, verdict)
         found, backend, corpus = await asyncio.to_thread(_retrieve_sync, settings, run_id, standalone)
         if found is None or not found.chunks:
             return A.not_covered(backend, corpus)

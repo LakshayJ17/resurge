@@ -104,7 +104,8 @@ def _styles(sans: str, serif: str) -> dict:
 # --------------------------------------------------------------------------- text helpers
 _CITE: ContextVar["Citations | None"] = ContextVar("pdf_citations", default=None)
 _ID = r"F-[0-9a-fA-F]{8}"
-_INLINE_REFS = re.compile(rf"\s*[\(\[]?\s*({_ID}(?:\s*[,;]\s*{_ID})*)\s*[\)\]]?")
+# bounded whitespace: open-ended \s* on both sides of an optional bracket took cubic time on long runs of spaces
+_INLINE_REFS = re.compile(rf"\s{{0,3}}[\(\[]?\s{{0,3}}({_ID}(?:\s{{0,3}}[,;]\s{{0,3}}{_ID})*)\s{{0,3}}[\)\]]?")
 
 
 def esc(value: object) -> str:
@@ -173,6 +174,35 @@ def build_pdf(report: ResearchReport, path: Path, charts: Mapping[str, Path | st
     sans, serif = _register_fonts()
     S = _styles(sans, serif)
     charts = {k: Path(v) for k, v in (charts or {}).items() if v and Path(v).is_file()}
+    from reportlab.platypus.doctemplate import LayoutError
+
+    try:
+        return _build_with(report, path, charts, sans, serif, S)
+    except LayoutError:
+        # A table row can't break across pages, so one very long model-written field (a strength, a matrix note)
+        # would otherwise mean no PDF at all: build again with long text fields clipped.
+        return _build_with(_clipped(report, CLIP_ON_RETRY), path, charts, sans, serif, S)
+
+
+CLIP_ON_RETRY = 400
+
+
+def _clipped(report: ResearchReport, limit: int) -> ResearchReport:
+    """A copy of the report with every text field longer than ``limit`` characters cut short (quotes and URLs too)."""
+    def cut(value: Any) -> Any:
+        if isinstance(value, str):
+            return value if len(value) <= limit else value[:limit - 1].rstrip() + "…"
+        if isinstance(value, list):
+            return [cut(v) for v in value]
+        if isinstance(value, dict):
+            return {k: cut(v) for k, v in value.items()}
+        return value
+
+    return ResearchReport.model_validate(cut(report.model_dump(mode="json")))
+
+
+def _build_with(report: ResearchReport, path: Path, charts: Mapping[str, Path], sans: str, serif: str,
+                S: dict) -> Path:
     cite = Citations(report)
     token = _CITE.set(cite)
     try:
@@ -264,9 +294,13 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
         if not left and not right:
             return None
         cw = (frame_w - 8 * mm) / 2
-        lcol = [h3(left_title)] + (bullets(left) or [P("None found in the verified research.", "small")])
-        rcol = [h3(right_title)] + (bullets(right) or [P("None found in the verified research.", "small")])
-        t = Table([[lcol, rcol]], colWidths=[cw, cw], hAlign="LEFT")
+        lcol = bullets(left) or [P("None found in the verified research.", "small")]
+        rcol = bullets(right) or [P("None found in the verified research.", "small")]
+        # one row per pair of bullets (not one cell per list), so a long list can continue on the next page
+        rows = [[h3(left_title), h3(right_title)]] + [
+            [lcol[i] if i < len(lcol) else "", rcol[i] if i < len(rcol) else ""]
+            for i in range(max(len(lcol), len(rcol)))]
+        t = Table(rows, colWidths=[cw, cw], hAlign="LEFT", repeatRows=1)
         t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                ("RIGHTPADDING", (0, 0), (0, -1), 8 * mm), ("RIGHTPADDING", (1, 0), (1, -1), 0)]))
         return t

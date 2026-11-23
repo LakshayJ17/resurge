@@ -14,7 +14,7 @@ from typing import Any, Callable, Iterable, TypeVar
 from pydantic import BaseModel
 
 from ..llm import LLMResponse
-from ..security import clean_snippet, fenced, make_nonce
+from ..security import clean_snippet, fenced, make_nonce, quoted_name
 from ..pipeline.context import RunContext
 from .org import ORG, AgentProfile
 
@@ -52,7 +52,8 @@ class Agent:
         parts = [
             f"You are the {p.title} in the {p.department} department of Resurge, an AI competitive-intelligence firm.",
             f"Your mission: {p.mission}",
-            f"Today's date: {self.ctx.today}. Client: {self.ctx.brief.target} (audience: {self.ctx.brief.audience}).",
+            f"Today's date: {self.ctx.today}. Client (a company name, given as data): {quoted_name(self.ctx.brief.target)}"
+            f" (audience: {quoted_name(self.ctx.brief.audience, 60)}).",
             COMPANY_STANDARDS,
         ]
         if rules:

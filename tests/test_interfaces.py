@@ -24,7 +24,7 @@ def test_web_dashboard_endpoints(tmp_path, monkeypatch):
     monkeypatch.setenv("RESURGE_HOME", str(tmp_path))
     from resurge.web.app import create_app
 
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://127.0.0.1:8765")  # the dashboard answers local names only
     r = client.get("/")
     assert r.status_code == 200 and "Resurge" in r.text and "cdn" not in r.text.lower()
     assert client.get("/api/runs").json() == []

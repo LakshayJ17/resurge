@@ -16,6 +16,8 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+import re
 import json
 import os
 import shutil
@@ -78,6 +80,15 @@ def _keep_awake() -> bool:
     from .system import keep_awake
 
     return keep_awake(tie_to_process=True) is not None
+
+
+_TERM_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def _term_safe(text: str) -> str:
+    """Text for the terminal with control characters removed: research text comes from the web, and escape sequences
+    could rewrite the clipboard, the window title or hide text (OSC 52, OSC 0, CSI)."""
+    return _TERM_CONTROL.sub("", str(text or ""))
 
 
 def _split(x: str) -> list[str]:
@@ -503,20 +514,21 @@ def chat(run_id: Optional[str] = typer.Argument(None, help="Run to chat with (de
                     console.print(Text(f"✗ Could not answer: {msg}", style="red"))
                     continue
                 style = {"high": "green", "medium": "yellow", "low": "red"}[out["confidence"]]
-                console.print(Panel(Markdown(out["answer"]), border_style=style,
+                console.print(Panel(Markdown(_term_safe(out["answer"]), hyperlinks=False), border_style=style,
                                     title=f"confidence {out['confidence']}"
                                           + ("" if out["grounded"] else " · not covered"),
                                     subtitle=f"{time.time() - t0:.1f}s"))
                 for c in out["citations"]:
                     line = Text(f"[{c['n']}] ", style="bold")
-                    line.append(c["claim"])
+                    line.append(_term_safe(c["claim"]))
                     if c.get("competitor"):
-                        line.append(f" · {c['competitor']}", style="cyan")
+                        line.append(f" · {_term_safe(c['competitor'])}", style="cyan")
                     if c.get("url"):
-                        line.append(f"\n    {c.get('title') or ''} {c['url']}".rstrip(), style="dim")
+                        line.append(f"\n    {_term_safe(c.get('title') or '')} {_term_safe(c['url'])}".rstrip(), style="dim")
                     console.print(line)
                 if out["followups"]:
-                    console.print(Text("Try: " + "  ·  ".join(out["followups"]), style="dim italic"))
+                    console.print(Text("Try: " + "  ·  ".join(_term_safe(f) for f in out["followups"]),
+                                       style="dim italic"))
                 history += [{"role": "user", "content": question}, {"role": "assistant", "content": out["answer"]}]
                 history = history[-rag.MAX_TURNS:]
         finally:
@@ -607,6 +619,33 @@ def ui(host: str = "127.0.0.1", port: int = 8765):
 
 
 @app.command()
+def admin(email: str = typer.Argument(..., help="The admin's email address (also listed in RESURGE_ADMIN_EMAILS)"),
+          password_stdin: bool = typer.Option(False, "--password-stdin", help="Read the password from standard input")):
+    """Create the admin account for the hosted web app (or take over that inbox's account and reset its password).
+
+    Admins are only ever made here, on the server: the web sign-up refuses addresses listed in RESURGE_ADMIN_EMAILS,
+    so nobody can claim the admin address before you do. In Docker: docker compose exec resurge resurge admin EMAIL"""
+    from .web.accounts import AccountError, Accounts
+    from .web.hosted import HostedConfig
+
+    s = _settings()
+    s.data_dir.mkdir(parents=True, exist_ok=True)
+    cfg = HostedConfig()
+    password = (sys.stdin.readline().rstrip("\n") if password_stdin
+                else typer.prompt("Password (10+ characters)", hide_input=True, confirmation_prompt=True))
+    try:
+        user = Accounts(s.data_dir / "accounts.db", cfg.admin_emails).make_admin(email, password)
+    except AccountError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    if user.is_admin:
+        console.print(f"[green]Admin account ready:[/green] {user.email}. Log in on the website.")
+    else:
+        console.print(f"[yellow]Saved {user.email}, but it is not in RESURGE_ADMIN_EMAILS yet: add it there (and "
+                      "restart) to give it admin rights.[/yellow]")
+
+
+@app.command()
 def serve(host: str = typer.Option("0.0.0.0", help="Interface to listen on"),
           port: int = typer.Option(int(os.getenv("PORT", "8000")), help="Port (the PORT env var is honoured)")):
     """Run the hosted multi-user web app: sign up, log in, type a company (for Docker and servers)."""
@@ -621,7 +660,7 @@ def serve(host: str = typer.Option("0.0.0.0", help="Interface to listen on"),
     if not (site / "index.html").is_file():
         console.print(f"[yellow]The website is not built yet ({site}). Build it once: "
                       "cd frontend && npm install && npm run build[/yellow]")
-    trust_proxy = os.getenv("RESURGE_TRUST_PROXY", "0") == "1"
+    trust_proxy = os.getenv("RESURGE_TRUST_PROXY", "0").strip().lower() in ("1", "true", "yes", "caddy", "cloudflare")
     console.print(f"[magenta]Resurge web app[/magenta] → http://{host}:{port}"
                   + (" (trusting proxy headers)" if trust_proxy else ""))
     uvicorn.run(create_hosted_app(), host=host, port=port, log_level="info", proxy_headers=trust_proxy,

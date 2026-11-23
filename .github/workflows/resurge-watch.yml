@@ -21,22 +21,18 @@ on:
         required: false
         default: "quick"
 
+# The workflow only reads the repository; it never writes to it.
+permissions:
+  contents: read
+
 jobs:
   watch:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
+    env:  # not secret: the inputs reach commands only through these variables, never pasted into a script
       TARGET: ${{ github.event.inputs.target || vars.RESURGE_TARGET }}
       COMPETITORS: ${{ github.event.inputs.competitors || vars.RESURGE_COMPETITORS }}
       DEPTH: ${{ github.event.inputs.depth || 'quick' }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,8 +48,26 @@ jobs:
         run: pip install -e .
       - name: Check providers
         run: resurge doctor
+        env:  # the keys are given only to the steps that call the models (not to checkout or pip install)
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
       - name: Run engagement and diff against last week
         run: resurge watch "$TARGET" --competitors "$COMPETITORS" --depth "$DEPTH" --notify
+        env:  # the keys are given only to the steps that call the models (not to checkout or pip install)
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      # Artifacts can be downloaded by anyone who can read this repository: keep the repository private if the
+      # reports are confidential.
       - name: Upload deliverables
         uses: actions/upload-artifact@v4
         with:

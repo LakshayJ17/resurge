@@ -234,6 +234,7 @@ def _font_family() -> tuple[str, ...]:
 def _style() -> Iterator[None]:
     mpl = _matplotlib()
     rc = {
+        "text.parse_math": False,  # labels come from the web: "$12 to $8" is text, "$\\foo$" must not crash a chart
         "font.family": list(_font_family()),
         "font.size": 10.5,
         "text.color": INK,

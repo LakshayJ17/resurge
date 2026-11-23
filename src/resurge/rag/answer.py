@@ -18,7 +18,8 @@ from urllib.parse import urlparse
 
 from ..guardrails import LEAK_REPLY, check_output, new_canary
 from ..llm.jsonutil import LLMModel
-from ..security import clean_snippet, fenced, make_nonce, neutralize, scan, spotlight_rules, strip_invisible
+from ..security import (clean_snippet, fenced, make_nonce, neutralize, quoted_name, scan, spotlight_rules,
+                        strip_invisible)
 from ..text import truncate
 from .chunks import DIMENSION_LABELS
 
@@ -77,7 +78,8 @@ PROMPT_FINGERPRINTS = ("You are the research desk of Resurge", "Answer ONLY from
 def build_prompt(question: str, blocks: list[dict], *, target: str, competitors: list[str],
                  nonce: str, today: str | None = None, canary: str | None = None) -> tuple[str, str]:
     today = today or date.today().isoformat()
-    comps = ", ".join(competitors) or "see sources"
+    comps = ", ".join(quoted_name(c, 80) for c in competitors[:12]) or "see sources"
+    target = quoted_name(target)  # names come from the research (ultimately the web): quoted values, never prose
     system = f"""You are the research desk of Resurge, answering questions about ONE finished competitive-intelligence \
 engagement for {target} (competitors researched: {comps}). "We", "us" and "our" mean {target}. Today is {today}.
 
@@ -114,7 +116,7 @@ No headings, no URLs, no links.
 _MARKER = re.compile(r"\[\s*(\d{1,3}(?:\s*(?:,|;|and|&)\s*\d{1,3})*)\s*\]")
 _ODD_MARKER = re.compile(r"【\s*(\d{1,3})(?:[†:][^】]*)?】")  # gpt-oss style citations
 _FID_MARKER = re.compile(r"\[\s*(F-[0-9a-f]{6,12}(?:\s*[,;]\s*F-[0-9a-f]{6,12})*)\s*\]")
-_MD_LINK = re.compile(r"\[([^\]\n]{1,200})\]\((?:https?:|javascript:|data:|mailto:)[^)\s]*\)", re.I)
+_MD_LINK = re.compile(r"\[([^\]\n]{1,200})\]\([^)\s]*\)")  # any target: answers cite [n], they never link
 _URL = re.compile(r"(?:https?://|www\.)[^\s)\]>\"']+", re.I)
 _HTML = re.compile(r"</?[a-zA-Z][^<>]{0,200}>")
 _PLACEHOLDER = re.compile(r"⟦(\d+)⟧")
@@ -133,8 +135,11 @@ def cited_numbers(obj: RagAnswer, k: int) -> list[int]:
     return [n for n in dict.fromkeys(nums) if 1 <= n <= k]
 
 
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")  # terminal escapes (ESC, OSC, CSI), BEL, NUL ...
+
+
 def _clean_text(text: str) -> str:
-    text = strip_invisible(text or "")
+    text = _CONTROL.sub("", strip_invisible(text or ""))
     text = _MD_LINK.sub(r"\1", text)
     text = _URL.sub("", text)
     text = _HTML.sub("", text)

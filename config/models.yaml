@@ -174,7 +174,7 @@ roles:
   reflector:           {prefer: [groq/openai/gpt-oss-120b, openrouter/nvidia/nemotron-3-ultra-550b-a55b:free, gemini/gemini-3.5-flash-lite], tags: [reasoning], max_tokens: 2500}
   security_guard:      {prefer: [groq/meta-llama/llama-prompt-guard-2-86m], tags: [guard], max_tokens: 8, fallback: false}
   # Input guardrails: policy check of what people type (gpt-oss-safeguard first; small general models apply the same policy when it is busy)
-  guardrail:           {prefer: [groq/openai/gpt-oss-safeguard-20b, groq/openai/gpt-oss-20b, gemini/gemini-3.5-flash-lite, groq/qwen/qwen3.8-27b, gemini/gemini-3.1-flash-lite, cerebras/gpt-oss-120b, mistral/mistral-small-latest, gemini/gemma-4-26b-a4b-it, groq/openai/gpt-oss-120b], tags: [guardrail], max_tokens: 300, fallback: false}
+  guardrail:           {prefer: [groq/openai/gpt-oss-safeguard-20b, groq/openai/gpt-oss-20b, gemini/gemini-3.5-flash-lite, groq/qwen/qwen3.8-27b, gemini/gemini-3.1-flash-lite, cerebras/gpt-oss-120b, mistral/mistral-small-latest, gemini/gemma-4-26b-a4b-it, groq/openai/gpt-oss-120b], tags: [guardrail], max_tokens: 800, fallback: false}
   # RAG chat over finished runs (resurge chat / dashboard / MCP ask_research): fast, strong, generous daily quota
   rag_answerer:        {prefer: [groq/openai/gpt-oss-120b, gemini/gemini-3.5-flash-lite, nvidia/openai/gpt-oss-120b, gemini/gemma-4-31b-it, mistral/mistral-medium-latest], tags: [writer, analysis], max_tokens: 1200}
   # Non-reasoning models first: with max_tokens 200 a reasoning model can spend the budget thinking and return nothing.

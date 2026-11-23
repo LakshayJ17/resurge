@@ -10,6 +10,7 @@ tolerates a report whose optional sections are empty.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import textwrap
 from collections.abc import Callable, Iterable, Mapping
@@ -113,9 +114,15 @@ def bullets(items: Iterable[object]) -> str:
     return "\n".join(f"• {t}" for t in (one_line(i) for i in items) if t)
 
 
-def slugify(value: object, fallback: str = "item") -> str:
-    """Lower-case ASCII slug for file names and HTML ids."""
-    slug = re.sub(r"[^a-z0-9]+", "-", one_line(value).lower()).strip("-")
+def slugify(value: object, fallback: str = "item", max_len: int = 60) -> str:
+    """Lower-case ASCII slug for file names and HTML ids. Plain names keep a plain slug ("Atlas Docs" -> "atlas-docs");
+    a name that loses characters on the way ("Quill Workspace!", non-Latin names) or is too long for a file name gets
+    a short hash of the full name, so two different names never share a page or an id."""
+    text = one_line(value)
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    if text and (slug != re.sub(r"\s+", "-", text.lower()) or len(slug) > max_len):
+        digest = hashlib.sha1(text.encode("utf-8")).hexdigest()[:6]
+        return f"{(slug or fallback)[:max_len].rstrip('-')}-{digest}"
     return slug or fallback
 
 
@@ -299,8 +306,10 @@ def report_title(report: ResearchReport) -> str:
 
 
 _CODE = r"F-(?:[0-9a-fA-F]{6,8}|R\d{1,2})"
-_CODES = re.compile(rf"\s*[\(\[]\s*{_CODE}(?:\s*[,;]\s*{_CODE})*\s*[\)\]]|\s*\b{_CODE}\b(?:\s*[,;]\s*{_CODE}\b)*"
-                    r"|\s*[\(\[]F-[0-9a-fA-F]{0,8}(?:\.\.\.|…)[\)\]]")  # a code the model cut short: "[F-c...]"
+# Whitespace runs are bounded ({0,3}): with open-ended \s* a long run of spaces made matching quadratic or worse.
+_W = r"\s{0,3}"
+_CODES = re.compile(rf"{_W}[\(\[]{_W}{_CODE}(?:{_W}[,;]{_W}{_CODE})*{_W}[\)\]]|{_W}\b{_CODE}\b(?:{_W}[,;]{_W}{_CODE}\b)*"
+                    rf"|{_W}[\(\[]F-[0-9a-fA-F]{{0,8}}(?:\.\.\.|…)[\)\]]")  # a code the model cut short: "[F-c...]"
 
 
 def strip_codes(text: str) -> str:

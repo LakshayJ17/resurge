@@ -17,6 +17,7 @@ Tools
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 
@@ -127,7 +128,7 @@ def build_server() -> MCPServer:
     def list_runs(limit: int = 10) -> list[dict]:
         rows = Storage(load_settings().db_path).list_runs(limit)
         return [{"run_id": r["id"], "target": r.get("target"), "status": r.get("status"),
-                 "quality": r.get("quality"), "report_dir": r.get("report_dir")} for r in rows]
+                 "quality": r.get("quality")} for r in rows]
 
     @server.tool(description=f"Return one section of a saved report as JSON. section: {', '.join(SECTIONS)}")
     def get_report_section(run_id: str, section: str = "executive_summary") -> Any:
@@ -177,9 +178,40 @@ def build_server() -> MCPServer:
     return server
 
 
+class BearerAuth:
+    """Every HTTP request to the MCP endpoint must carry ``Authorization: Bearer <token>``. The server only listens
+    on 127.0.0.1, but without a token any program or other user on this computer could run research on your keys
+    and read your reports."""
+
+    def __init__(self, app: Any, token: str) -> None:
+        self.app, self.expected = app, f"Bearer {token}".encode()
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] == "http":
+            import hmac
+
+            got = dict(scope.get("headers") or []).get(b"authorization", b"")
+            if not hmac.compare_digest(got, self.expected):
+                await send({"type": "http.response.start", "status": 401,
+                            "headers": [(b"content-type", b"application/json"), (b"www-authenticate", b"Bearer")]})
+                await send({"type": "http.response.body", "body": b'{"error": "missing or wrong token"}'})
+                return
+        await self.app(scope, receive, send)
+
+
 def serve(transport: str = "stdio", port: int = 8770) -> None:
     server = build_server()
     if transport in ("http", "streamable-http"):
-        server.run("streamable-http", host="127.0.0.1", port=port)
+        import secrets
+        import sys
+
+        import uvicorn
+
+        token = os.getenv("RESURGE_MCP_TOKEN", "").strip() or secrets.token_urlsafe(24)
+        print(f"Resurge MCP over HTTP: http://127.0.0.1:{port}/mcp\n"
+              f"Send the header  Authorization: Bearer {token}\n"
+              "(set RESURGE_MCP_TOKEN in .env to keep the same token across restarts)", file=sys.stderr)
+        uvicorn.run(BearerAuth(server.streamable_http_app(host="127.0.0.1"), token), host="127.0.0.1", port=port,
+                    log_level="warning")
     else:
         server.run("stdio")

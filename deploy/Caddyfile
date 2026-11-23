@@ -1,6 +1,14 @@
 # Automatic HTTPS (Let's Encrypt) for the Resurge web app. DOMAIN comes from .env.
 {$DOMAIN} {
 	encode gzip
-	reverse_proxy resurge:8000
+	# refuse oversized uploads before they reach the app (it also enforces 64 KB itself)
+	request_body {
+		max_size 64KB
+	}
+	reverse_proxy resurge:8000 {
+		# the app reads the visitor's address from X-Forwarded-For, which Caddy sets itself; drop a CF-Connecting-IP
+		# a visitor might send, so it can never be mistaken for a real one
+		header_up -CF-Connecting-IP
+	}
 	header -Server
 }

@@ -20,23 +20,32 @@ Browser ──HTTPS──> Caddy or Cloudflare Tunnel ──> resurge serve (Doc
 | `RESURGE_MAX_CONCURRENT_RUNS` | 1 | Runs at the same time; the rest wait in line |
 | `RESURGE_CHAT_PER_USER_DAY` | 40 | Chat questions per account per day |
 | `RESURGE_ALLOWED_DEPTHS` | `quick,standard` | Depths users may choose |
-| `RESURGE_ADMIN_EMAILS` | none | Accounts that see `/admin` and have no limits |
+| `RESURGE_ADMIN_EMAILS` | none | Addresses that may be admins (see `/admin`, no limits). The account itself is created with `resurge admin EMAIL` on the server; web sign-up refuses these addresses |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | off | Free Cloudflare bot check on sign-up (recommended with open sign-up) |
-| `RESURGE_PUBLIC_URL` | none | Your https address; turns on secure cookies |
+| `RESURGE_PUBLIC_URL` | none | Your full https address (with `https://`); turns on secure cookies, and only this origin may post and only its host name is answered |
+| `RESURGE_ALLOWED_HOSTS` | none | Extra host names the server answers to (besides localhost and the public URL), e.g. a LAN address for testing; other Host headers get 421 |
+| `RESURGE_TRUST_PROXY` | `0` | `1` behind Caddy (reads the last `X-Forwarded-For` entry), `cloudflare` behind a Cloudflare Tunnel (reads `CF-Connecting-IP`); docker-compose sets `1` |
 | `RESURGE_GUARDRAILS` | `strict` | `strict` refuses a request when the policy check can't run; `on` lets the rule layer decide alone; `off` skips the model checks |
 | `RESURGE_GUARD_STRIKES` | 5 | Blocked requests in 24 hours before an account is paused for the rest of the day |
 | `RESURGE_FRONTEND_DIR` | `frontend/out` | The built website; the Docker image sets it for you |
 | `RESURGE_ALLOWED_ORIGINS` | none | Extra origins allowed to post, only for the Next.js dev server (`http://localhost:3000`) |
 
 Security built in:
-- **Log-in:** scrypt password hashing (Unicode-normalised); per-account lockout after 5 failures (15, 30, then 60
-  minutes, stored in the database); per-IP and per-email throttling; identical answers and timing for unknown
-  accounts; sign-up that doesn't reveal which emails exist; breached-password check against Have I Been Pwned using
-  k-anonymity (only a 5-character hash prefix leaves the server; `RESURGE_PWNED_CHECK=0` turns it off).
+- **Log-in:** scrypt password hashing (Unicode-normalised, run off the request loop); lockout after 5 failures from
+  one network (15, 30, then 60 minutes), so a stranger guessing locks only themselves out, plus an account-wide pause
+  after 50 failures in a day from anywhere; both stored in the database; per-IP and per-email throttling; identical
+  answers and timing for unknown, wrong-password and locked accounts; breached-password check against Have I Been
+  Pwned using k-anonymity (only a 5-character hash prefix leaves the server; `RESURGE_PWNED_CHECK=0` turns it off).
+  Known limit: without email verification, sign-up says when an address already has an account (rate-limited to 5
+  tries per network per hour).
+- **Admins:** only made on the server (`resurge admin EMAIL`), and only while the address is in
+  `RESURGE_ADMIN_EMAILS`; removing it from the list removes the rights at the next restart.
 - **Sessions:** random tokens stored only as hashes, rotated at log-in, 3-day idle and 14-day absolute expiry,
   `__Host-` HttpOnly SameSite cookies over HTTPS, password change and "log out everywhere" revoke every session.
 - **Abuse:** one account per inbox (plus-aliases and Gmail dots count as the same address), throwaway email domains
-  refused (`RESURGE_BLOCKED_EMAIL_DOMAINS` adds more), honeypot field, optional Turnstile, request size limit, daily caps.
+  refused (`RESURGE_BLOCKED_EMAIL_DOMAINS` adds more), honeypot field, optional Turnstile, a 64 KB request limit that
+  also holds for chunked uploads, daily caps checked and reserved in one step (parallel requests can't slip past them)
+  and counted against the hashed address and network, so deleting an account and signing up again doesn't reset them.
 - **Requests:** Origin check on every form and API call, strict Content-Security-Policy on app and report pages,
   no caching of private pages, reports visible only to their owner, provider error text never shown to users.
 - **Prompt injection:** company names, competitors and questions are shape-checked and scanned before any model sees
@@ -90,9 +99,11 @@ reclaim an Always Free instance it considers idle (see Oracle's Always Free docu
      ```
    - **Cloudflare Tunnel (no open ports; needs a domain on Cloudflare):** in Cloudflare Zero Trust create a tunnel,
      add a public hostname whose service is `http://resurge:8000`, copy the token into `CLOUDFLARE_TUNNEL_TOKEN=`,
-     set `RESURGE_PUBLIC_URL`, then `docker compose --profile tunnel up -d --build`.
-5. **Make yourself admin:** set `RESURGE_ADMIN_EMAILS=you@example.com` in `.env`, run `docker compose up -d`, then sign
-   up with that email. `/admin` shows accounts, today's usage and the queue.
+     set `RESURGE_PUBLIC_URL` and `RESURGE_TRUST_PROXY=cloudflare`, then `docker compose --profile tunnel up -d --build`.
+5. **Make yourself admin:** set `RESURGE_ADMIN_EMAILS=you@example.com` in `.env`, run `docker compose up -d`, then
+   create the account on the server: `docker compose exec resurge resurge admin you@example.com` (it asks for a
+   password). Web sign-up refuses that address, so nobody can claim it first. `/admin` shows accounts, today's usage
+   and the queue.
 6. **Turn on the bot check (recommended):** Cloudflare dashboard > Turnstile > add a widget for your hostname, put
    the two keys in `.env`, `docker compose up -d`.
 
@@ -113,9 +124,11 @@ reclaim an Always Free instance it considers idle (see Oracle's Always Free docu
 ```bash
 pip install -e ".[web,rag]"
 cd frontend && npm install && npm run build && cd ..   # the website, once (Node 20+)
+RESURGE_ADMIN_EMAILS=you@example.com resurge admin you@example.com    # optional: an admin account
 RESURGE_ADMIN_EMAILS=you@example.com resurge serve --host 127.0.0.1 --port 8000
 ```
-Open http://127.0.0.1:8000, sign up, and start an analysis. After changing the website, run `npm run build` again
+Open http://127.0.0.1:8000, sign up (or log in as the admin), and start an analysis. To open it from another device on
+your network, add that address's host to `RESURGE_ALLOWED_HOSTS` (the server answers only names it knows). After changing the website, run `npm run build` again
 (the server picks up the new files without a restart), or work with live reload: `npm run dev` in `frontend/` and
 `RESURGE_ALLOWED_ORIGINS=http://localhost:3000 resurge serve`, then open http://localhost:3000. `resurge ui` is still available for the single-user local
 dashboard. With only a local Ollama model and no free cloud key, the policy check has no model to run on, so add

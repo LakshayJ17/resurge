@@ -41,8 +41,16 @@ export async function api<T>(path: string, { method, body }: Options = {}): Prom
 
 export const post = <T,>(path: string, body: unknown = {}) => api<T>(path, { method: "POST", body });
 
-/** A same-site path to return to after logging in; anything else falls back to the dashboard. */
+/** A same-site path to return to after logging in; anything else falls back to the dashboard. The value is parsed
+ * the way the browser will parse it (tabs and newlines are dropped, so "/\t/evil.com" would mean "//evil.com") and
+ * only its path, query and hash are kept, and only when it stays on this origin. */
 export function safeNext(value: string | null): string {
-  if (value && value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return value;
-  return "/dashboard";
+  if (!value || !value.startsWith("/") || /[\u0000-\u001f\u007f\\]/.test(value)) return "/dashboard";
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.origin !== window.location.origin) return "/dashboard";
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return "/dashboard";
+  }
 }

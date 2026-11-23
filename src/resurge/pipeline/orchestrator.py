@@ -14,6 +14,7 @@ instead of killing the run, and every degradation is recorded as a risk):
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -41,6 +42,8 @@ from ..storage import Storage
 from ..text import slugify, tokenize, truncate
 from ..tools import PRIOR_RELIABILITY, PageFetcher, SearchRouter, domain_of
 from .context import RunContext
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -115,7 +118,8 @@ class ResurgeCompany:
             raise
         except Exception as e:
             self.storage.update_run(run_id, status="failed", error=str(e)[:500], finished_at=time.time())
-            events.emit(EXEC, "COO", "error", f"Engagement failed: {e}")
+            log.warning("engagement %s failed: %s: %s", run_id, type(e).__name__, str(e)[:500])
+            events.emit(EXEC, "COO", "error", f"Engagement failed ({type(e).__name__})")  # details: server log only
             raise
         finally:
             await llm.aclose()
@@ -547,8 +551,12 @@ class ResurgeCompany:
             fmts = (fmts or set(outputs.DEFAULT_FORMATS)) | {"gsheets"}
         artifacts = await asyncio.to_thread(outputs.publish_all, report, out_dir, fmts)
         for k, v in artifacts.items():
-            kind = "warn" if k.endswith("_error") else "info"
-            ctx.events.emit(COMMS, ORG["publisher"].title, kind, f"{k}: {v}")
+            if k.endswith("_error"):  # the error text can name server paths: the exception type is enough here
+                log.warning("publishing %s failed: %s", k.removesuffix("_error"), v)
+                ctx.events.emit(COMMS, ORG["publisher"].title, "warn",
+                                f"Could not build the {k.removesuffix('_error')} file ({str(v).split(':', 1)[0][:40]})")
+            else:
+                ctx.events.emit(COMMS, ORG["publisher"].title, "info", f"{k}: {v}")
         if notify:
             sent = await asyncio.to_thread(outputs.notify, report, artifacts)
             if sent:

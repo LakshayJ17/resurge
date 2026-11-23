@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from .security import FLAG_AT, scan, strip_invisible
+from .security import FLAG_AT, fold, scan, strip_invisible
 
 INJECTION_REPLY = ("That reads like an instruction to the AI rather than a question about this research, so it was not "
                    "sent. Ask about the competitors, their pricing, features, customers or risks.")
@@ -34,7 +34,8 @@ class InputRejected(ValueError):
 
 
 def _suspicious(text: str) -> bool:
-    return scan(text).score >= FLAG_AT or bool(_CODEISH.search(text)) or bool(_OFFTASK.search(text))
+    folded = fold(text)  # full-width, lookalike and accented spellings read like plain ones
+    return scan(text).score >= FLAG_AT or bool(_CODEISH.search(folded)) or bool(_OFFTASK.search(folded))
 
 
 def screen_brief_inputs(company: str, competitors: str, questions: str) -> tuple[str, list[str], list[str]]:

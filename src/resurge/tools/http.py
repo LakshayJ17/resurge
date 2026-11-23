@@ -26,12 +26,15 @@ import re
 import threading
 import time
 import weakref
+import zlib
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Generic, Literal, TypeVar
 from urllib.parse import urlsplit
 
+import anyio
+import httpcore
 import httpx
 
 log = logging.getLogger(__name__)
@@ -129,32 +132,63 @@ class BlockedAddressError(httpx.RequestError):
     cloud metadata (169.254.169.254), carrier-grade NAT, multicast or reserved ranges, or an unusual port."""
 
 
+_NAT64 = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
+
+
 def is_public_ip(ip: str) -> bool:
+    """True only for globally routable unicast addresses. IPv6 forms that carry an IPv4 address (mapped, NAT64,
+    6to4, Teredo) are judged by that IPv4 address, so ``64:ff9b::a9fe:a9fe`` counts as 169.254.169.254."""
     addr = ipaddress.ip_address(ip.split("%")[0])
-    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
-        addr = addr.ipv4_mapped
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped:
+            addr = addr.ipv4_mapped
+        elif any(addr in net for net in _NAT64):
+            addr = ipaddress.IPv4Address(int(addr) & 0xFFFFFFFF)
+        elif addr.sixtofour:
+            addr = addr.sixtofour
+        elif addr.teredo:
+            return False
     return addr.is_global and not addr.is_multicast
+
+
+def _private_fetch_allowed() -> bool:
+    return os.getenv("RESURGE_ALLOW_PRIVATE_FETCH", "0") == "1"  # local development against a test server only
+
+
+def _check_ips(host: str, ips: list[str]) -> list[str]:
+    if not ips or not all(is_public_ip(ip) for ip in ips):
+        raise BlockedAddressError(f"refusing non-public address for {host}")
+    return ips
+
+
+async def resolve_public(host: str, port: int) -> list[str]:
+    """Every address ``host`` resolves to, in resolver order; raises :class:`BlockedAddressError` if any is not public.
+
+    ``host`` must be the ASCII (punycode) form that the connection itself uses, so the check and the connection can
+    never disagree about which name was meant."""
+    host = host.strip("[]")
+    if _is_ip_literal(host):
+        return _check_ips(host, [host])
+    try:
+        infos = await anyio.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError) as exc:
+        raise httpx.ConnectError(f"could not resolve {host}") from exc
+    return _check_ips(host, list(dict.fromkeys(str(info[4][0]) for info in infos)))
 
 
 async def assert_public_url(url: httpx.URL) -> None:
     """Raise :class:`BlockedAddressError` unless every address the host resolves to is public (checked per hop)."""
-    if os.getenv("RESURGE_ALLOW_PRIVATE_FETCH", "0") == "1":  # local development against a test server only
+    if _private_fetch_allowed():
         return
     if url.scheme not in ("http", "https"):
         raise BlockedAddressError(f"refusing non-web scheme {url.scheme!r}")
     port = url.port or (443 if url.scheme == "https" else 80)
     if port not in FETCH_PORTS:
         raise BlockedAddressError(f"refusing port {port}")
-    host = (url.host or "").strip("[]")
+    host = url.raw_host.decode("ascii", "replace").strip("[]")  # the punycode name the connection will use
     if not host:
         raise BlockedAddressError("missing host")
-    try:
-        ips = [host] if _is_ip_literal(host) else sorted({info[4][0] for info in await asyncio.get_running_loop()
-                                                          .getaddrinfo(host, port, type=socket.SOCK_STREAM)})
-    except socket.gaierror as exc:
-        raise httpx.ConnectError(f"could not resolve {host}") from exc
-    if not ips or not all(is_public_ip(ip) for ip in ips):
-        raise BlockedAddressError(f"refusing non-public address for {host}")
+    await resolve_public(host, port)
 
 
 def _is_ip_literal(host: str) -> bool:
@@ -167,6 +201,47 @@ def _is_ip_literal(host: str) -> bool:
 
 async def _guard_hook(request: httpx.Request) -> None:
     await assert_public_url(request.url)
+
+
+class PublicOnlyBackend(httpcore.AsyncNetworkBackend):
+    """Network layer for page fetches: resolves each host once, refuses non-public addresses and then connects to
+    exactly the address it checked. The request hook alone is not enough: the connection resolves the name again, so
+    a DNS answer that changes between the two lookups (DNS rebinding) would reach an internal address. TLS still
+    verifies the certificate against the hostname, because httpcore passes it separately as the server name."""
+
+    def __init__(self, inner: httpcore.AsyncNetworkBackend | None = None) -> None:
+        self._inner = inner or httpcore.AnyIOBackend()
+
+    async def connect_tcp(self, host: str, port: int, timeout: float | None = None, local_address: str | None = None,
+                          socket_options: Any = None) -> httpcore.AsyncNetworkStream:
+        kwargs = {"timeout": timeout, "local_address": local_address, "socket_options": socket_options}
+        if _private_fetch_allowed():
+            return await self._inner.connect_tcp(host, port, **kwargs)
+        if port not in FETCH_PORTS:
+            raise BlockedAddressError(f"refusing port {port}")
+        last: Exception | None = None
+        for ip in await resolve_public(host, port):
+            try:
+                return await self._inner.connect_tcp(ip, port, **kwargs)
+            except (httpcore.ConnectError, httpcore.ConnectTimeout) as exc:
+                last = exc
+        raise last or httpcore.ConnectError(f"could not connect to {host}")
+
+    async def connect_unix_socket(self, path: str, timeout: float | None = None,
+                                  socket_options: Any = None) -> httpcore.AsyncNetworkStream:
+        raise BlockedAddressError("refusing unix sockets")
+
+    async def sleep(self, seconds: float) -> None:
+        await self._inner.sleep(seconds)
+
+
+def _page_transport(limits: httpx.Limits) -> httpx.AsyncHTTPTransport:
+    transport = httpx.AsyncHTTPTransport(limits=limits, trust_env=False)
+    pool = getattr(transport, "_pool", None)
+    if not isinstance(pool, httpcore.AsyncConnectionPool) or not hasattr(pool, "_network_backend"):
+        raise RuntimeError("httpx/httpcore changed: cannot install the page-fetch address guard")  # fail closed
+    pool._network_backend = PublicOnlyBackend()
+    return transport
 
 
 def make_client(
@@ -191,10 +266,14 @@ def make_client(
     # Page fetches go to addresses found on the open web (search results, redirects): guard every hop against SSRF.
     # API clients talk to fixed, configured hosts (some legitimately local, e.g. SearXNG). Injected test transports
     # never touch the network.
-    hooks = {"request": [_guard_hook]} if profile == "page" and transport is None else {}
+    # Page clients also ignore proxy settings from the environment: a proxy would make the address checks moot.
+    limits = httpx.Limits(max_connections=32, max_keepalive_connections=16)
+    guarded = profile == "page" and transport is None
+    hooks = {"request": [_guard_hook]} if guarded else {}
     return httpx.AsyncClient(
         headers=base, timeout=timeout, follow_redirects=follow_redirects, max_redirects=max_redirects,
-        limits=httpx.Limits(max_connections=32, max_keepalive_connections=16), transport=transport, event_hooks=hooks,
+        limits=limits, transport=_page_transport(limits) if guarded else transport, event_hooks=hooks,
+        trust_env=not guarded,
     )
 
 
@@ -226,6 +305,53 @@ class LoopLocal(Generic[T]):
 
 class ResponseTooLarge(Exception):
     """Raised when a body exceeds the size cap and truncation is not allowed."""
+
+
+class _BoundedDecoder:
+    """Decodes a ``Content-Encoding`` body a slice at a time, never producing more than asked for. httpx's own
+    decoders expand each network read in full, so a small gzip bomb could allocate hundreds of MB before any size
+    check ran."""
+
+    def __init__(self, encoding: str) -> None:
+        self.mode = {"gzip": "gzip", "x-gzip": "gzip", "deflate": "deflate"}.get(encoding, "identity")
+        self._raw_deflate = False
+        self._new()
+
+    def _new(self) -> None:
+        bits = 16 + zlib.MAX_WBITS if self.mode == "gzip" else (-zlib.MAX_WBITS if self._raw_deflate else zlib.MAX_WBITS)
+        self._d = zlib.decompressobj(bits) if self.mode != "identity" else None
+
+    def feed(self, data: bytes, limit: int) -> bytes:
+        if self._d is None:
+            return data[:limit]
+        out = bytearray()
+        while data and len(out) < limit:
+            try:
+                out += self._d.decompress(data, limit - len(out))
+            except zlib.error as exc:
+                if self.mode == "deflate" and not self._raw_deflate and not out:  # some servers send raw deflate
+                    self._raw_deflate = True
+                    self._new()
+                    continue
+                raise httpx.DecodingError(f"could not decode {self.mode} body: {exc}") from exc
+            data = self._d.unconsumed_tail
+            if self._d.eof:
+                data = self._d.unused_data  # a further gzip member, or trailing bytes
+                if not data:
+                    break
+                self._new()
+        return bytes(out)
+
+    @staticmethod
+    def for_response(resp: httpx.Response) -> _BoundedDecoder | None:
+        """A decoder for this response, or ``None`` for encodings it does not handle (left to httpx)."""
+        codings = [c.strip().lower() for c in resp.headers.get("content-encoding", "").split(",") if c.strip()]
+        codings = [c for c in codings if c != "identity"]
+        if not codings:
+            return _BoundedDecoder("identity")
+        if len(codings) == 1 and codings[0] in ("gzip", "x-gzip", "deflate"):
+            return _BoundedDecoder(codings[0])
+        return None
 
 
 @dataclass(slots=True)
@@ -283,6 +409,7 @@ async def request(
     max_bytes: int = MAX_RESPONSE_BYTES,
     truncate: bool = False,
     accept_body: Callable[[httpx.Response], bool] | None = None,
+    follow_redirects: bool | None = None,
 ) -> HttpResult:
     """Send a request and read at most ``max_bytes`` of the (decoded) body.
 
@@ -295,6 +422,8 @@ async def request(
         kwargs["json"] = json_body
     if data is not None:
         kwargs["data"] = data
+    if follow_redirects is not None:
+        kwargs["follow_redirects"] = follow_redirects
     async with client.stream(method, url, **kwargs) as resp:
         if accept_body is not None and not accept_body(resp):
             return HttpResult(url, str(resp.url), resp.status_code, resp.headers, b"", skipped_body=True)
@@ -303,7 +432,12 @@ async def request(
             raise ResponseTooLarge(f"{url}: {declared} bytes > cap {max_bytes}")
         buf = bytearray()
         truncated = False
-        async for chunk in resp.aiter_bytes():
+        decoder = _BoundedDecoder.for_response(resp)
+        if resp.is_stream_consumed:  # body already in memory (in-memory transports): nothing left to bound
+            decoder = None
+        chunks = resp.aiter_raw() if decoder is not None else resp.aiter_bytes()
+        async for raw in chunks:
+            chunk = decoder.feed(raw, max_bytes + 1 - len(buf)) if decoder is not None else raw
             buf.extend(chunk)
             if len(buf) > max_bytes:
                 if not truncate:

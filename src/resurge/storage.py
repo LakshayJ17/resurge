@@ -163,6 +163,13 @@ class Storage:
             vals.append(_dumps(v) if isinstance(v, (dict, list)) else v)
         self._exec(f"UPDATE runs SET {', '.join(cols)} WHERE id=?", (*vals, run_id))
 
+    def delete_run(self, run_id: str) -> None:
+        """Remove a run and everything recorded about it (its events, model calls, facts and scores)."""
+        for sql in ("DELETE FROM events WHERE run_id=?", "DELETE FROM llm_calls WHERE run_id=?",
+                    "DELETE FROM facts WHERE run_id=?", "DELETE FROM run_scores WHERE run_id=?",
+                    "DELETE FROM runs WHERE id=?"):
+            self._exec(sql, (run_id,))
+
     def get_run(self, run_id: str) -> dict | None:
         rows = self._query("SELECT * FROM runs WHERE id=?", (run_id,))
         return self._run_row(rows[0]) if rows else None

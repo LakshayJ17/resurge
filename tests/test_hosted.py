@@ -68,7 +68,7 @@ def make_client(tmp_path, monkeypatch):
                            runs_total_day=50, max_concurrent=1, max_queue=10, chat_per_user_day=2,
                            allowed_depths=["quick", "standard"], turnstile_site_key="", turnstile_secret="",
                            public_url="", trust_proxy=False, private_mode=False, pwned_check=False,
-                           frontend_dir=str(site), extra_origins=set())
+                           frontend_dir=str(site), extra_origins=set(), allowed_hosts={"testserver"})
         for k, v in overrides.items():
             setattr(cfg, k, v)
         settings = Settings(home=tmp_path)
@@ -369,7 +369,8 @@ def test_admin_api_is_admin_only(make_client):
         signup(client)
         assert client.get("/api/admin").status_code == 404
         client.post("/api/logout", headers=ORIGIN)
-        signup(client, "boss@example.com")
+        app.state.accounts.make_admin("boss@example.com", PW)  # admins are made from the command line
+        login(client, "boss@example.com")
         assert me(client)["is_admin"] is True and me(client)["remaining"] is None
         data = client.get("/api/admin").json()
         assert data["stats"]["users"] == 2 and {u["email"] for u in data["users"]} == {"ana@example.com", "boss@example.com"}

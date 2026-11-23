@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -36,6 +37,29 @@ from ..storage import Storage
 from ..text import slugify
 
 STATIC = Path(__file__).parent / "static"
+LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def report_csp() -> str:
+    """Content-Security-Policy for report pages served next to an API: only the two scripts Resurge itself writes
+    (the Ask page and the print button) may run, nothing may be framed, posted or loaded from elsewhere."""
+    import base64
+    import hashlib
+
+    from ..outputs.html_report import SCRIPT_HASH
+    from ..outputs.site import ASK_SCRIPT
+
+    ask = "sha256-" + base64.b64encode(hashlib.sha256(ASK_SCRIPT.encode()).digest()).decode()
+    return ("default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; connect-src 'self'; "
+            f"script-src '{ask}' '{SCRIPT_HASH.strip(chr(39))}'; base-uri 'none'; form-action 'none'; "
+            "frame-ancestors 'none'")
+
+
+def _host_name(host_header: str) -> str:
+    host = host_header.strip().lower()
+    if host.startswith("["):
+        return host[1:host.find("]")] if "]" in host else ""
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
 log = logging.getLogger(__name__)
 
 
@@ -74,6 +98,27 @@ def create_app() -> FastAPI:
     storage = Storage(settings.db_path)
     app = FastAPI(title="Resurge", version="0.1.0")
     tasks: dict[str, asyncio.Task] = {}
+    allowed_hosts = LOOPBACK | {h.strip().lower() for h in os.getenv("RESURGE_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    csp = report_csp()
+
+    @app.middleware("http")
+    async def local_only(request: Request, call_next):
+        """This dashboard has no log-in, so it must only ever answer the person at this computer:
+        * Host must be a local name: a web page that points its own domain at 127.0.0.1 (DNS rebinding) is refused;
+        * other websites may not POST here (Origin must be this dashboard) nor make the browser load its API or
+          files in the background (Sec-Fetch-Site: cross-site), e.g. an <img> that triggers model discovery."""
+        if _host_name(request.headers.get("host", "")) not in allowed_hosts:
+            return JSONResponse({"detail": "unknown host"}, status_code=421)
+        if request.headers.get("sec-fetch-site") == "cross-site" and request.url.path != "/":
+            return JSONResponse({"detail": "cross-site request refused"}, status_code=403)
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            origin = request.headers.get("origin")
+            if origin is not None and urlparse(origin).netloc != request.headers.get("host"):
+                return JSONResponse({"detail": "cross-origin request refused"}, status_code=403)
+        resp = await call_next(request)
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        return resp
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
@@ -234,6 +279,9 @@ def create_app() -> FastAPI:
         path = (base / name).resolve()
         if base not in path.parents or not path.is_file():
             raise HTTPException(404)
-        return FileResponse(path)
+        resp = FileResponse(path)
+        if path.suffix.lower() in (".html", ".htm"):  # report text comes from the web: only Resurge's scripts run
+            resp.headers["Content-Security-Policy"] = csp
+        return resp
 
     return app
