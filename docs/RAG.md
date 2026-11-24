@@ -5,11 +5,11 @@ facts and their source URLs:
 
 ```
 $ resurge chat
-You › How much does Asana cost for 50 seats?
+You > How much does Asana cost for 50 seats?
 Starter: 50 × $13.49 = $674.50 per month, billed annually [1]. Advanced: 50 × $30.49 = $1,524.50 per month [2].
 (Sources as of 2026-11-05.)
-[1] Asana Starter: US$13.49 per user per month billed annually · Asana   https://asana.com/pricing
-[2] Asana Advanced: US$30.49 per user per month billed annually · Asana  https://asana.com/pricing
+[1] Asana Starter: US$13.49 per user per month billed annually (Asana)  https://asana.com/pricing
+[2] Asana Advanced: US$30.49 per user per month billed annually (Asana) https://asana.com/pricing
 ```
 
 It costs **$0**: embeddings are computed locally, vectors live in Qdrant (embedded local mode or the free Qdrant
@@ -18,9 +18,9 @@ Cloud cluster), and answers use the same free-tier model router as the rest of R
 ## How it works
 
 ```
-report.json ─► chunks ─► local embeddings ─► Qdrant (one collection, filtered by run_id)
+report.json -> chunks -> local embeddings -> Qdrant (one collection, filtered by run_id)
                                                         │
-question ─► (condense follow-up) ─► dense top-k ⊕ BM25 ─► RRF fusion ─► fenced context ─► free LLM ─► validated answer
+question -> (condense follow-up) -> dense top-k + BM25 -> RRF fusion -> fenced context -> free LLM -> validated answer
 ```
 
 1. **Chunks** (`rag/chunks.py`). One chunk per *usable* fact (status supported/partial): competitor, dimension,
@@ -57,7 +57,7 @@ question ─► (condense follow-up) ─► dense top-k ⊕ BM25 ─► RRF fusi
 
 ## Safety and honesty
 
-* **Retrieved text is untrusted web data.** Every block is wrapped in `<<SOURCE n #nonce>> … <<END n #nonce>>`. The
+* **Retrieved text is untrusted web data.** Every block is wrapped in `<<SOURCE n #nonce>> ... <<END n #nonce>>`. The
   nonce is random per call and fence-like text inside the data is defanged. The system prompt carries the standard
   spotlighting rules.
 * **The answering model is tool-less.** It can only return JSON.
@@ -87,7 +87,7 @@ Indexing is lazy anyway: the first question about a run indexes it automatically
 
 **Local mode (default, private).** With no extra configuration, Qdrant runs embedded in the Resurge process and stores
 data in `data/qdrant`. The store is locked only for the duration of each operation, so `resurge ui` and a CLI command
-can share it. Local mode is meant for up to roughly 20,000 chunks (≈100+ runs).
+can share it. Local mode is meant for up to roughly 20,000 chunks (about 100 runs).
 
 **Qdrant Cloud (free 1 GB cluster).** Create a free cluster at <https://cloud.qdrant.io>, then add its URL and API key
 to your **`.env`** (never to `.env.example`, which is a public template):
@@ -119,8 +119,8 @@ fact claims, quotes, URLs and the analysis built from them. Your questions are n
 * **CLI:** `resurge index [RUN_ID]`, `resurge chat [RUN_ID]`
 * **Web dashboard** (`resurge ui`):
   * `GET /api/runs/{run_id}/chat/status` returns `{indexed, chunks, backend}`.
-  * `POST /api/runs/{run_id}/chat` takes `{"question": str (≤500 chars), "history": [{"role": "user"|"assistant",
-    "content": str}] (≤8 turns)}`.
+  * `POST /api/runs/{run_id}/chat` takes `{"question": str (up to 500 chars), "history": [{"role": "user"|"assistant",
+    "content": str}] (up to 8 turns)}`.
   * Errors: `422` for bad input, `404` for an unknown run, `409` for a run without a report, `503` when RAG or the
     models are unavailable, and `403` for cross-origin POSTs.
 * **MCP:** `ask_research(question, run_id=None)` (defaults to the latest finished run).
@@ -138,7 +138,7 @@ rag.status(settings, run_id)                      # {"indexed", "chunks", "backe
 
 Model routing for the two roles lives in `config/models.yaml`:
 
-* `rag_answerer`: gpt-oss-120b on Groq, then Gemini Flash-Lite, …
+* `rag_answerer`: gpt-oss-120b on Groq, then Gemini Flash-Lite, and so on
 * `rag_condenser`: Gemini 3.1 Flash-Lite, then Gemma-4-26B, then gpt-oss-20b on Groq (non-reasoning models first, so the 200-token budget isn't spent on thinking)
 
-Answers typically take 1–2 s.
+Answers typically take 1 to 2 seconds.

@@ -30,7 +30,10 @@ INK, INK2, MUTED = "#1c1b18", "#3d3b36", "#6b6862"
 RULE, RULE2, TINT = "#dcdad4", "#bdbab2", "#f3f1ec"
 ACCENT, DANGER = "#1f4e8c", "#9b2c2c"
 SEATS = (10, 50, 200)
-TIMEFRAME = {"now": "Now (0–30 days)", "next": "Next (30–90 days)", "later": "Later (90+ days)"}
+# A dimension key inside a 'what changed' line: 'New (Acme, recent_news): ...'. Older runs separated the parts with
+# a middle dot, which the second alternative still matches.
+_CHANGE_DIM = re.compile(r"(?<=, )([a-z]+(?:_[a-z]+)+)(?=\):)|(?<=\u00b7 )([a-z]+(?:_[a-z]+)+)(?=\s*[:\u00b7])")
+TIMEFRAME = {"now": "Now (0-30 days)", "next": "Next (30-90 days)", "later": "Later (90+ days)"}
 STATUS_GLYPH = {"yes": ("✓", "Yes"), "partial": ("◐", "Partly"), "no": ("✗", "No"), "unknown": ("?", "Unknown")}
 
 
@@ -191,7 +194,7 @@ def _clipped(report: ResearchReport, limit: int) -> ResearchReport:
     """A copy of the report with every text field longer than ``limit`` characters cut short (quotes and URLs too)."""
     def cut(value: Any) -> Any:
         if isinstance(value, str):
-            return value if len(value) <= limit else value[:limit - 1].rstrip() + "…"
+            return value if len(value) <= limit else value[:limit - 3].rstrip() + "..."
         if isinstance(value, list):
             return [cut(v) for v in value]
         if isinstance(value, dict):
@@ -324,13 +327,13 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
     story += [Spacer(1, 38 * mm), P("COMPETITOR REPORT", "cover_label"), Spacer(1, 4), P(esc(target), "cover_title")]
     if comps:
         story.append(P("Compared with " + esc(", ".join(comps)), "cover_sub"))
-    story.append(P(f"Prepared {esc(created)} · {esc(report.brief.depth.value.title())} research", "small"))
+    story.append(P(f"Prepared {esc(created)}, {esc(report.brief.depth.value.title())} research", "small"))
     story.append(Spacer(1, 14 * mm))
     if es.headline:
         story.append(callout(esc(es.headline), style="cover_headline"))
         story.append(Spacer(1, 10 * mm))
     tiles = [(fmt_int(len(comps)), "Competitors"), (fmt_int(len(usable) or m.facts_usable), "Verified facts"),
-             (fmt_int(len(report.sources)), "Public sources"), (f"{m.quality_score:.0f}/100" if m.quality_score else "–",
+             (fmt_int(len(report.sources)), "Public sources"), (f"{m.quality_score:.0f}/100" if m.quality_score else "-",
                                                                  "Quality score")]
     tw = frame_w / 4
     tt = Table([[[P(esc(v), "metric_v"), P(esc(l), "metric_l")] for v, l in tiles]], colWidths=[tw] * 4, hAlign="LEFT")
@@ -406,10 +409,10 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
     if report.changes_since_last_run:
         story.append(h3("What changed since the last run"))
         changes = report.changes_since_last_run
-        story += bullets(esc(re.sub(r"· ([a-z]+(?:_[a-z]+)+)(?=\s*[:·])", lambda m: f"· {pretty_dimension(m.group(1))}", x))
+        story += bullets(esc(_CHANGE_DIM.sub(lambda m: pretty_dimension(m.group(1) or m.group(2)), x))
                          for x in changes[:15])
         if len(changes) > 15:
-            story.append(P(f"…and {len(changes) - 15} more.", "small"))
+            story.append(P(f"Plus {len(changes) - 15} more.", "small"))
 
     # ---------------------------------------------------------------- by the numbers
     stats = by_the_numbers(report)
@@ -449,7 +452,7 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
             pairs = [("Why", cite.prose(r.rationale, r.fact_ids)), ("First step", esc(r.first_step)),
                      ("Owner", esc(r.owner)), ("When", esc(TIMEFRAME.get(r.timeframe, r.timeframe))),
                      ("Measure", esc(r.metric)), ("Aimed at", esc(", ".join(r.competitors))),
-                     ("Priority", esc(f"{r.priority.title()} · impact {r.impact}/5 · effort {r.effort}/5"))]
+                     ("Priority", esc(f"{r.priority.title()}, impact {r.impact}/5, effort {r.effort}/5"))]
             story.append(KeepTogether([Paragraph(f"{n}. {esc(r.title)}", S["H3"]), kv_table(pairs)]))
 
     # ---------------------------------------------------------------- market
@@ -513,8 +516,8 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
     features, subjects, cells = matrix_axes(report)
     if features and subjects:
         story += h1("Features")
-        story.append(P("Which capabilities each company offers, from the verified facts. “Unknown” means the "
-                       "research found no evidence either way; it is never counted as a “no”.", "body"))
+        story.append(P('Which capabilities each company offers, from the verified facts. "Unknown" means the '
+                       'research found no evidence either way; it is never counted as a "no".', "body"))
         story += chart("feature_breadth", "", max_h=75 * mm)
         subjects = sorted(subjects, key=lambda s: not is_target(s, report))
         col_w = min(30 * mm, (frame_w - 46 * mm) / max(1, len(subjects)))
@@ -586,7 +589,7 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
                     story += [P("<b>Questions to ask the buyer</b>", "body")] + bullets(esc(x) for x in bc.landmines)
                 if bc.objections:
                     rows = [[P("When they say", "cell_h"), P("Answer", "cell_h")]]
-                    rows += [[P(f"“{esc(o.objection)}”", "cell"), P(esc(o.response), "cell")] for o in bc.objections]
+                    rows += [[P(f'"{esc(o.objection)}"', "cell"), P(esc(o.response), "cell")] for o in bc.objections]
                     story += [Spacer(1, 3), rule_table(rows, [frame_w * 0.4, frame_w * 0.6])]
                 if bc.pricing_talk_track:
                     story.append(P(f"<b>Pricing talk track:</b> {esc(bc.pricing_talk_track)}", "body"))
@@ -598,13 +601,13 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
     risks = sorted_risks(report)
     if risks:
         story += h1("Risks")
-        story.append(P("Market and research risks, scored by likelihood and impact (1–5 each), with what to do and "
+        story.append(P("Market and research risks, scored by likelihood and impact (1 to 5 each), with what to do and "
                        "the early-warning signs to watch.", "body"))
         story += chart("risk_heatmap", "", max_h=85 * mm)
         for r in risks:
             band = risk_band(risk_score(r))
             pairs = [("What could happen", cite.prose(r.description, r.fact_ids)),
-                     ("Score", esc(f"{band} · likelihood {r.likelihood}/5 · impact {r.impact}/5 · "
+                     ("Score", esc(f"{band}, likelihood {r.likelihood}/5, impact {r.impact}/5, "
                                    f"{str(r.category).replace('_', ' ')}")),
                      ("Mitigation", esc(r.mitigation)), ("Owner", esc(r.owner)),
                      ("Watch for", esc("; ".join(r.signals))), ("Related", esc(", ".join(r.related_competitors)))]
@@ -657,10 +660,10 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
             url = f.source_urls[0] if f.source_urls else ""
             meta = [link(url) if url else "", esc(f.as_of or ""), f"confidence {pct(f.confidence)}",
                     "quote matched" if f.grounded else "", f"{f.corroborations} other sources agree" if f.corroborations else ""]
-            quote = f'<br/><i>“{esc(_clip(_plain_quote(f.quote), 420))}”</i>' if f.quote else ""
+            quote = f'<br/><i>"{esc(_clip(_plain_quote(f.quote), 420))}"</i>' if f.quote else ""
             value = f" <b>{esc(f.value)}</b>." if f.value and f.value.lower() not in f.claim.lower() else ""
             story.append(Paragraph(f'<a name="fact{n}"/><b>{n}.</b> {esc(f.claim)}{value}{quote}<br/>'
-                                   f'<font size="7.4" color="{MUTED}">{" · ".join(x for x in meta if x)}</font>',
+                                   f'<font size="7.4" color="{MUTED}">{" | ".join(x for x in meta if x)}</font>',
                                    S["fact"]))
 
     # ---------------------------------------------------------------- appendix: sources
@@ -684,7 +687,7 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
                                    f'<font color="{DANGER}">[{esc(f.status)}]</font>{note}', S["bullet"], bulletText="•"))
 
     # ---------------------------------------------------------------- page furniture
-    footer_left = f"Resurge · {clean(target)} competitor report · {created}"
+    footer_left = f"Resurge | {clean(target)} competitor report | {created}"
 
     def cover_page(canvas, doc) -> None:
         canvas.saveState()
@@ -732,7 +735,7 @@ def _build(report: ResearchReport, path: Path, charts: Mapping[str, Path], cite:
 # --------------------------------------------------------------------------- data helpers
 def _clip(text: object, n: int) -> str:
     t = clean(text)
-    return t if len(t) <= n else t[: n - 1].rstrip() + "…"
+    return t if len(t) <= n else t[: n - 3].rstrip() + "..."
 
 
 def _price(text: str | None) -> str:
@@ -742,7 +745,7 @@ def _price(text: str | None) -> str:
 
 def _plain_quote(text: str) -> str:
     """Page text keeps markdown markers ("### Basic $10", "- Agent platform"); drop them for reading."""
-    t = re.sub(r"(^|\s)(?:#{1,6}|[*•])\s+", r"\1", clean_multiline(text))
+    t = re.sub(r"(^|\s)(?:#{1,6}|[*\u2022])\s+", r"\1", clean_multiline(text))
     t = re.sub(r"(^|\n)\s*-\s+", r"\1", t)
     return re.sub(r"\s+", " ", t).strip(" -")
 
@@ -797,7 +800,7 @@ def _timeline(report: ResearchReport) -> list[tuple[str, str, str, list[str]]]:
                     key = (int(m.group(2)), _MONTHS.get(mon[:3].title(), 0))
                     when = f"{mon[:3].title()} {m.group(2)}".strip()
                     break
-            text = re.sub(r"^\s*[A-Z][a-z]{2,8}\.?\s+\d{4}\s*[:\-–—]\s*", "", i.text)
+            text = re.sub(r"^\s*[A-Z][a-z]{2,8}\.?\s+\d{4}\s*[:\-\u2013\u2014]\s*", "", i.text)
             out.append((key, when, p.name, text, i.fact_ids))
     out.sort(key=lambda x: x[0], reverse=True)
     return [(w, n, t, ids) for _, w, n, t, ids in out]

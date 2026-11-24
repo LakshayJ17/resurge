@@ -104,7 +104,7 @@ class ResurgeCompany:
         events.emit(EXEC, "COO", "start", f"Engagement opened: {brief.target} ({brief.depth.value})", run_id=run_id)
         lim = budget.limits
         events.emit(FINANCE, ORG["cfo"].title, "info",
-                    f"Budget approved: ≤{lim.llm_calls} LLM calls, ≤{lim.searches} searches, ≤{lim.pages} pages. "
+                    f"Budget approved: up to {lim.llm_calls} LLM calls, {lim.searches} searches and {lim.pages} pages. "
                     "Spend: $0 (free tiers + cache)")
         events.emit(INFRA, ORG["cto"].title, "info",
                     f"{len(llm.active)} providers online ({', '.join(sorted(llm.active))}), "
@@ -613,11 +613,11 @@ def diff_facts(old: list[dict], facts: list[Fact], limit: int = 20) -> list[str]
         if best is not None and best_c >= 0.6:
             onums = {n.replace(",", "") for n in _NUMBER.findall(best.get("claim", ""))}
             if nums and onums and nums != onums and best_c >= 0.75:
-                changed.append(f"Changed · {f.competitor} · {f.dimension}: '{truncate(best.get('claim', ''), 90)}' → "
+                changed.append(f"Changed ({f.competitor}, {f.dimension}): '{truncate(best.get('claim', ''), 90)}' is now "
                                f"'{truncate(f.claim, 90)}' [{f.id}]")
             continue
-        new.append(f"New · {f.competitor} · {f.dimension}: {truncate(f.claim, 160)} [{f.id}]")
-    added = [f"Added · {c}: first time researched ({n} verified facts)" for c, n in first_time.items()]
+        new.append(f"New ({f.competitor}, {f.dimension}): {truncate(f.claim, 160)} [{f.id}]")
+    added = [f"Added: {c}, researched for the first time ({n} verified facts)" for c, n in first_time.items()]
     return (changed + added + new)[:limit]
 
 

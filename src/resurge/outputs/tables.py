@@ -67,7 +67,7 @@ def flatten(value: object) -> str:
     return _WHITESPACE.sub(" ", _INVALID_CHARS.sub("", str(value)))
 
 
-def clip(value: object, limit: int, ellipsis: str = "…") -> str:
+def clip(value: object, limit: int, ellipsis: str = "...") -> str:
     """Single-line text cut to at most ``limit`` characters on a word boundary."""
     text = one_line(value)
     if limit <= 0:
@@ -81,11 +81,11 @@ def clip(value: object, limit: int, ellipsis: str = "…") -> str:
         space = cut.rfind(" ")
         if space >= int(limit * 0.6):
             cut = cut[:space]
-    return cut.rstrip(" ,;:.-–—(/") + ellipsis
+    return cut.rstrip(" ,;:.-\u2013\u2014(/") + ellipsis
 
 
 def wrap_lines(value: object, width: int, max_lines: int | None = None) -> list[str]:
-    """Word-wrap text to ``width`` characters, ending in "…" when lines run out."""
+    """Word-wrap text to ``width`` characters, ending in "..." when lines run out."""
     text = one_line(value)
     if not text:
         return []
@@ -110,8 +110,8 @@ def join(items: Iterable[object], sep: str = "; ") -> str:
 
 
 def bullets(items: Iterable[object]) -> str:
-    """One ``• item`` per line (spreadsheet-friendly multi-line cell)."""
-    return "\n".join(f"• {t}" for t in (one_line(i) for i in items) if t)
+    """One ``- item`` per line (spreadsheet-friendly multi-line cell)."""
+    return "\n".join(f"- {t}" for t in (one_line(i) for i in items) if t)
 
 
 def slugify(value: object, fallback: str = "item", max_len: int = 60) -> str:
@@ -167,23 +167,23 @@ def domain_of(url: str) -> str:
 # Number / date helpers
 # --------------------------------------------------------------------------- #
 def pct(value: float | None, digits: int = 0) -> str:
-    """0.823 -> "82%"; ``None`` -> "–"."""
+    """0.823 -> "82%"; ``None`` -> "-"."""
     if value is None:
-        return "–"
+        return "-"
     return f"{float(value) * 100:.{digits}f}%"
 
 
 def fmt_int(value: float | int | None) -> str:
     """1234 -> "1,234"."""
     if value is None:
-        return "–"
+        return "-"
     return f"{int(round(float(value))):,}"
 
 
 def compact_number(value: float | int | None) -> str:
     """1_284_000 -> "1.3M", 12_900 -> "12.9K", 950 -> "950"."""
     if value is None:
-        return "–"
+        return "-"
     number = float(value)
     magnitude = abs(number)
     for divisor, suffix in ((1e9, "B"), (1e6, "M"), (1e3, "K")):
@@ -194,9 +194,9 @@ def compact_number(value: float | int | None) -> str:
 
 
 def fmt_usd(value: float | None, cents: bool | None = None) -> str:
-    """12 -> "$12", 7.5 -> "$7.50"; ``None`` -> "–"."""
+    """12 -> "$12", 7.5 -> "$7.50"; ``None`` -> "-"."""
     if value is None:
-        return "–"
+        return "-"
     number = float(value)
     if cents is None:
         cents = not number.is_integer()
@@ -206,7 +206,7 @@ def fmt_usd(value: float | None, cents: bool | None = None) -> str:
 def fmt_score(value: float | None, out_of: int) -> str:
     """8.14, 10 -> "8.1 / 10"."""
     if value is None:
-        return "–"
+        return "-"
     number = float(value)
     shown = f"{number:.0f}" if out_of >= 100 else f"{number:.1f}"
     return f"{shown} / {out_of}"
@@ -273,7 +273,7 @@ def pretty_dimension(dimension: str) -> str:
 
 
 def axis_name(label: str) -> str:
-    """"Price (low → high)" -> "Price"."""
+    """"Price (low to high)" -> "Price"."""
     return _PARENTHETICAL.sub(" ", one_line(label)).strip() or one_line(label)
 
 
@@ -309,7 +309,7 @@ _CODE = r"F-(?:[0-9a-fA-F]{6,8}|R\d{1,2})"
 # Whitespace runs are bounded ({0,3}): with open-ended \s* a long run of spaces made matching quadratic or worse.
 _W = r"\s{0,3}"
 _CODES = re.compile(rf"{_W}[\(\[]{_W}{_CODE}(?:{_W}[,;]{_W}{_CODE})*{_W}[\)\]]|{_W}\b{_CODE}\b(?:{_W}[,;]{_W}{_CODE}\b)*"
-                    rf"|{_W}[\(\[]F-[0-9a-fA-F]{{0,8}}(?:\.\.\.|…)[\)\]]")  # a code the model cut short: "[F-c...]"
+                    rf"|{_W}[\(\[]F-[0-9a-fA-F]{{0,8}}(?:\.\.\.|\u2026)[\)\]]")  # a code the model cut short: "[F-c...]"
 
 
 def strip_codes(text: str) -> str:
@@ -326,7 +326,7 @@ def display_name(name: str) -> str:
 def price_text(value: object) -> str:
     """A tier's price as written, or "Not listed" when the model left it empty or wrote null."""
     text = one_line(value)
-    return "Not listed" if not text or text.lower() in ("null", "none", "n/a", "unknown", "-", "—") else text
+    return "Not listed" if not text or text.lower() in ("null", "none", "n/a", "unknown", "-", "\u2014") else text
 
 
 def target_name(report: ResearchReport) -> str:
@@ -387,7 +387,7 @@ def insight_confidence(insight: Insight, facts: Mapping[str, Fact]) -> float | N
 
 
 def insight_note(insight: Insight, facts: Mapping[str, Fact]) -> str:
-    """"Confidence 85% · fact-backed · F-1, F-2" style provenance note."""
+    """"Confidence 85%; fact-backed; F-1, F-2" style provenance note."""
     parts: list[str] = []
     confidence = insight_confidence(insight, facts)
     if confidence is not None:
@@ -395,7 +395,7 @@ def insight_note(insight: Insight, facts: Mapping[str, Fact]) -> str:
     parts.append("inferred (analyst judgement)" if insight.inferred else "fact-backed")
     if insight.fact_ids:
         parts.append(", ".join(insight.fact_ids))
-    return " · ".join(parts)
+    return "; ".join(parts)
 
 
 def order_dimensions(dimensions: Iterable[str], report: ResearchReport | None = None) -> list[str]:
@@ -519,16 +519,16 @@ def key_metrics(report: ResearchReport) -> list[Metric]:
         ),
         Metric("verification_rate", "Verification rate", pct(verification), verification, "Usable facts ÷ all facts"),
         Metric("grounding_rate", "Grounding rate", pct(grounding), grounding, "Quote found in source"),
-        Metric("coverage", "Coverage", pct(m.coverage), m.coverage, "Cells with ≥1 usable fact"),
-        Metric("avg_qa_score", "Avg QA score", fmt_score(avg_qa, 10), avg_qa, "Mean stage review (0–10)"),
-        Metric("quality_score", "Quality score", fmt_score(m.quality_score, 100), m.quality_score, "Composite 0–100"),
+        Metric("coverage", "Coverage", pct(m.coverage), m.coverage, "Cells with at least one usable fact"),
+        Metric("avg_qa_score", "Avg QA score", fmt_score(avg_qa, 10), avg_qa, "Mean stage review (0-10)"),
+        Metric("quality_score", "Quality score", fmt_score(m.quality_score, 100), m.quality_score, "Composite 0-100"),
         Metric("llm_calls", "LLM calls", fmt_int(m.llm_calls), m.llm_calls, f"{fmt_int(m.llm_failures)} failed"),
         Metric(
             "tokens",
             "Tokens",
             compact_number(tokens),
             tokens,
-            f"{fmt_int(m.tokens_in)} in · {fmt_int(m.tokens_out)} out",
+            f"{fmt_int(m.tokens_in)} in, {fmt_int(m.tokens_out)} out",
         ),
         Metric("cache_hits", "Cache hits", fmt_int(m.cache_hits), m.cache_hits, "Calls served from cache"),
         Metric(
@@ -992,7 +992,7 @@ def quality_table(report: ResearchReport) -> Table:
         if r.suggestions:
             note.append(f"suggestions: {join(r.suggestions)}")
         rows.append(
-            ["Stage review", f"{r.stage} (attempt {r.attempt})", round(r.score, 2), "", "", "", "", "", "", " · ".join(note)]
+            ["Stage review", f"{r.stage} (attempt {r.attempt})", round(r.score, 2), "", "", "", "", "", "", "; ".join(note)]
         )
     headers = [
         "Section",

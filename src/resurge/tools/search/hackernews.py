@@ -68,10 +68,10 @@ class HackerNewsBackend(SearchBackend):
                 meta.append(date[:10])
             body = clean_text(hit.get("story_text") or hit.get("comment_text") or "", 600)
             if link_mode == "story" and story:
-                url, lead = story, f"{' · '.join(meta)}. HN discussion: {discussion}."
+                url, lead = story, f"{', '.join(meta)}. HN discussion: {discussion}."
             else:
                 url = discussion
-                lead = f"Hacker News discussion ({' · '.join(meta)})." + (f" Links to: {story}." if story else "")
+                lead = f"Hacker News discussion ({', '.join(meta)})." + (f" Links to: {story}." if story else "")
             title = hit.get("title") or hit.get("story_title") or ""
             out.append(result(url, title, f"{lead} {body}".strip(), hit.get("created_at")))
         return out

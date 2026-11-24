@@ -4,9 +4,9 @@ People open a link, read what Resurge is on the landing page, create an account,
 get the report. Nothing to install on their side.
 
 ```
-Browser ──HTTPS──> Caddy or Cloudflare Tunnel ──> resurge serve (Docker: website + API) ──> free LLM APIs, public web
-                                                       │
-                                                       └── /data volume: accounts, research database, reports, chat index
+Browser --HTTPS--> Caddy or Cloudflare Tunnel --> resurge serve (Docker: website + API) --> free LLM APIs, public web
+                                                       |
+                                                       +-- /data volume: accounts, research database, reports, chat index
 ```
 
 ## What the app enforces (because everyone shares your free API keys)

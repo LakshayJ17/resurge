@@ -169,8 +169,8 @@ def test_watch_diff_ignores_rephrasing_and_detects_changes():
            _fact("F-00000012", "Coda targets Team and Enterprise customers", comp="Coda", dim="target_customers"),
            _fact("F-00000013", "Coda launched an MCP server for AI agents", comp="Coda", dim="recent_news")]
     out = diff_facts(old, new)
-    assert out[0].startswith("Changed · Coda · pricing") and "$10" in out[0] and "$12" in out[0]
-    assert any(x.startswith("New · Coda · recent_news") for x in out)
+    assert out[0].startswith("Changed (Coda, pricing)") and "$10" in out[0] and "$12" in out[0]
+    assert any(x.startswith("New (Coda, recent_news)") for x in out)
     assert not any("target_customers" in x for x in out)  # rephrasing is not news
 
 

@@ -89,7 +89,7 @@ covered in **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)**.
 |---|---|
 | Report site (`site/`) | A multi-page report: summary, competitors, pricing, features, market, risks, actions, sources, and an **Ask the research** chat page |
 | `report.html` | The whole report on one page; works offline, light and dark, phone-friendly, prints well |
-| `report.pdf` | The complete report as an A4 document (about 25–40 pages), with clickable contents, a chapter per competitor and every verified fact with its quote and source |
+| `report.pdf` | The complete report as an A4 document (about 25 to 40 pages), with clickable contents, a chapter per competitor and every verified fact with its quote and source |
 | `report.pptx` | A slide deck whose titles state the finding; citations in the speaker notes. Opens in PowerPoint, Keynote and Google Slides |
 | `report.md`, `report.json` | A Markdown copy, and the full report as data |
 | `charts/*.png` | Pricing, cost by team size, feature heatmap, positioning map, risk heatmap and more |
@@ -110,7 +110,7 @@ Prices on charts come only from cited facts; a price no fact contains is left of
 | Local dashboard | `resurge ui` | Launch runs, watch each department's live activity, browse reports, learning data and providers |
 | Hosted web app | `resurge serve` | Let people sign up, type a company and get the report and chat, with nothing to install |
 | MCP server | `resurge mcp` | Use Resurge from Claude Desktop or any MCP client |
-| Monitoring | `resurge watch`, [GitHub Actions workflow](.github/workflows/resurge-watch.yml) | Re-run on a schedule and report what changed, such as *Pro plan $10 → $12* |
+| Monitoring | `resurge watch`, [GitHub Actions workflow](.github/workflows/resurge-watch.yml) | Re-run on a schedule and report what changed, such as a plan's price going from $10 to $12 |
 
 ### Hosted web app
 

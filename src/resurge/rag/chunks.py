@@ -164,7 +164,7 @@ class _Builder:
     def facts(self) -> None:
         for f in self.usable.values():
             label = DIMENSION_LABELS.get(f.dimension, f.dimension.replace("_", " "))
-            parts = [f"{f.competitor} — {label}: {f.claim}"]
+            parts = [f"{f.competitor}, {label}: {f.claim}"]
             if f.value and f.value.lower() not in f.claim.lower() and f.value.lower() not in ("none", "null", "n/a"):
                 parts.append(f"Value: {f.value}.")
             if f.quote:
@@ -219,7 +219,7 @@ class _Builder:
     def battlecards(self) -> None:
         for bc in self.report.battlecards:
             c, s = bc.competitor, slugify(bc.competitor)
-            overview = [f"Battlecard — how {self.target} wins against {c}. {strip_tags(bc.one_liner)}"]
+            overview = [f"Battlecard: how {self.target} wins against {c}. {strip_tags(bc.one_liner)}"]
             if bc.why_we_win:
                 overview.append(f"Why we win: {_join(bc.why_we_win)}.")
             if bc.their_strengths:
@@ -230,13 +230,13 @@ class _Builder:
             self.add(f"bc:{s}:overview", "battlecard", " ".join(overview), f"How {self.target} wins against {c}",
                      competitor=c, fact_ids=ov_ids, inferred=True)
             if bc.objections:
-                text = f"Battlecard — objection handling against {c}: " + " ".join(
+                text = f"Battlecard: objection handling against {c}: " + " ".join(
                     f"Objection: {strip_tags(o.objection)} Response: {strip_tags(o.response)}" for o in bc.objections)
                 ids = _ids_in(*(o.objection + " " + o.response for o in bc.objections)) or list(bc.fact_ids)[:6]
                 self.add(f"bc:{s}:objections", "battlecard", text, f"Objection handling against {c}", competitor=c,
                          fact_ids=ids, inferred=True)
             if bc.pricing_talk_track or bc.landmines:
-                text = f"Battlecard — selling against {c}."
+                text = f"Battlecard: selling against {c}."
                 if bc.pricing_talk_track:
                     text += f" Pricing talk track: {strip_tags(bc.pricing_talk_track)}"
                 if bc.landmines:
@@ -276,7 +276,7 @@ class _Builder:
                          competitor=p.name, fact_ids=ids)
             for j, t in enumerate(p.pricing):
                 price = t.price or ("free" if t.price_monthly_usd == 0 else "price not published")
-                text = f"{p.name} pricing — {t.name} plan: {strip_tags(price)}."
+                text = f"{p.name} pricing, {t.name} plan: {strip_tags(price)}."
                 if t.billing:
                     text += f" Billing: {t.billing}."
                 if t.per_seat is not None:
@@ -322,7 +322,7 @@ class _Builder:
                     continue
                 comp = sw.subject if sw.subject != self.target else None
                 self.add(f"swot:{slugify(sw.subject)}:{quad}", "swot",
-                         f"SWOT for {sw.subject} — {quad}: {_join(x.text for x in items)}.",
+                         f"SWOT for {sw.subject}, {quad}: {_join(x.text for x in items)}.",
                          f"{sw.subject} {quad}", competitor=comp, fact_ids=[i for x in items for i in x.fact_ids])
 
     def market(self) -> None:

@@ -40,7 +40,7 @@ def test_numbers_can_never_be_paraphrased():
 
 def test_ellipsis_quotes_need_every_part_verbatim():
     g = GroundingIndex("Acme Pro costs $10 per seat. Annual billing saves 20%. A free plan exists for students.")
-    assert g.support("Acme Pro costs $10 per seat … Annual billing saves 20%") == 1.0
+    assert g.support("Acme Pro costs $10 per seat \u2026 Annual billing saves 20%") == 1.0
     assert g.support("Acme Pro costs $10 per seat ... free plan exists for everyone forever") < 0.6
 
 
@@ -99,7 +99,7 @@ def test_watch_summarises_newly_added_competitors():
     new = [Fact(id=f"F-0000000{i}", competitor="Plane", dimension="overview", claim=f"Plane fact number {i} here",
                 status="supported") for i in range(6)]
     out = diff_facts(old, new)
-    assert out == ["Added · Plane: first time researched (6 verified facts)"]
+    assert out == ["Added: Plane, researched for the first time (6 verified facts)"]
 
 
 # --------------------------------------------------------------------------- fair search share

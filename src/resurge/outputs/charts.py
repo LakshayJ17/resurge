@@ -107,7 +107,7 @@ TEAL_RAMP: dict[int, str] = {
 INK, INK_2, INK_3 = SLATE[900], SLATE[600], SLATE[500]
 GRID, AXIS = SLATE[200], SLATE[300]
 
-# Validated categorical order (adjacent-pair CVD ΔE ≥ 9 under protan/deutan
+# Validated categorical order (adjacent-pair CVD ΔE >= 9 under protan/deutan
 # simulation; first three slots pass all-pairs). Never cycled: companies past
 # the eighth fold into OTHER_COLOR.
 COMPETITOR_PALETTE: tuple[str, ...] = (
@@ -143,7 +143,7 @@ CELL_STATUS: dict[str, StatusStyle] = {
 FACT_STATUS: dict[str, StatusStyle] = {
     "supported": StatusStyle("#DCFCE7", "#166534", "✓", "Supported"),
     "partial": StatusStyle("#FEF3C7", "#92400E", "◐", "Partial"),
-    "pending": StatusStyle("#F1F5F9", "#475569", "…", "Pending"),
+    "pending": StatusStyle("#F1F5F9", "#475569", "...", "Pending"),
     "unsupported": StatusStyle("#FEE2E2", "#991B1B", "✗", "Unsupported"),
     "contradicted": StatusStyle("#FEE2E2", "#991B1B", "≠", "Contradicted"),
     "rejected": StatusStyle("#FEE2E2", "#991B1B", "✗", "Rejected"),
@@ -445,7 +445,7 @@ def chart_pricing(report: ResearchReport, colors: dict[str, str]) -> Figure | No
 
     def tip(tier: PricingTier) -> str:
         unit = "/seat" if tier.per_seat else (" flat" if tier.per_seat is False else "")
-        return f"{fmt_usd(tier.price_monthly_usd)}{unit} · {clip(tier.name, 18)}"
+        return f"{fmt_usd(tier.price_monthly_usd)}{unit}, {clip(tier.name, 18)}"
 
     tips = [tip(t) for r in rows for t in (r.entry, r.top) if t]
     width = 9.2
@@ -455,7 +455,7 @@ def chart_pricing(report: ResearchReport, colors: dict[str, str]) -> Figure | No
     frame = _frame(
         width,
         "Pricing ladder",
-        "Cheapest and most expensive paid tier per competitor · list price in USD per month",
+        "Cheapest and most expensive paid tier per competitor. List price in USD per month",
         "Prices normalised to USD per month from vendor pricing pages. Tiers without a public price are listed at right."
         + (f" {hidden} more competitors are listed in the full report." if hidden else ""),
     )
@@ -588,7 +588,7 @@ def chart_feature_matrix(report: ResearchReport, colors: dict[str, str]) -> Figu
     frame = _frame(
         width,
         "Feature comparison",
-        f"{nf} capabilities across {nc} companies · from product pages, docs and verified facts",
+        f"{nf} capabilities across {nc} companies, from product pages, docs and verified facts",
         f"Not shown: {' and '.join(hidden)} (see the full report)." if hidden else "",
     )
     fig = _figure(frame, head_h + nf * row_h + legend_h)
@@ -620,7 +620,7 @@ def chart_feature_matrix(report: ResearchReport, colors: dict[str, str]) -> Figu
         ax.text(
             j + 0.5,
             -0.14,
-            f"{statuses.count('yes')} yes · {statuses.count('partial')} partial",
+            f"{statuses.count('yes')} yes, {statuses.count('partial')} partial",
             ha="center",
             va="bottom",
             fontsize=8.5,
@@ -751,7 +751,7 @@ def chart_positioning(report: ResearchReport, colors: dict[str, str]) -> Figure 
         return None
     width, plot, left, right, below = 8.4, 6.0, 1.05, 0.45, 0.8
     target = target_name(report)
-    frame = _frame(width, "Competitive positioning", f"Analyst-scored 0–10 on both axes · ◆ = {target} (target)")
+    frame = _frame(width, "Competitive positioning", f"Analyst-scored 0-10 on both axes. ◆ = {target} (target)")
     fig = _figure(frame, plot + below)
     ax = _axes(fig, left, frame.bottom + below, width - left - right, plot)
     ax.set_xlim(-0.4, 10.4)
@@ -813,8 +813,8 @@ def chart_risk_heatmap(report: ResearchReport, colors: dict[str, str]) -> Figure
     labels = risk_labels(report)
     width, grid, left, gap, below, legend_h = 11.6, 4.4, 1.3, 0.65, 0.95, 0.45
     list_w = width - left - grid - gap - PAD
-    frame = _frame(width, "Risk heatmap", "Likelihood × impact on 1–5 scales · number in each cell = score · "
-                   "markers = risks, ranked at right")
+    frame = _frame(width, "Risk heatmap", "Likelihood × impact on 1-5 scales. The number in each cell is the score; "
+                   "markers are risks, ranked at right")
     fig = _figure(frame, grid + below + legend_h)
     base = frame.bottom + legend_h + below
     ax = _axes(fig, left, base, grid, grid)
@@ -856,7 +856,7 @@ def chart_risk_heatmap(report: ResearchReport, colors: dict[str, str]) -> Figure
     _hide_spines(ax)
 
     fw, fh = fig.get_size_inches()
-    bands = [("Low", "1–4"), ("Medium", "5–9"), ("High", "10–14"), ("Critical", "15–25")]
+    bands = [("Low", "1-4"), ("Medium", "5-9"), ("High", "10-14"), ("Critical", "15-25")]
     fig.legend(
         handles=[Patch(facecolor=RISK_BAND_FILL[b], edgecolor="none") for b, _ in bands],
         labels=[f"{b} {r}" for b, r in bands],
@@ -889,7 +889,7 @@ def chart_risk_heatmap(report: ResearchReport, colors: dict[str, str]) -> Figure
         lst.text(0.42, y - 0.03, clip(risk.title, title_chars), fontsize=10, color=INK, va="bottom")
         score = risk_score(risk)
         meta = (
-            f"{RISK_CATEGORY_LABELS.get(risk.category, risk.category)} · "
+            f"{RISK_CATEGORY_LABELS.get(risk.category, risk.category)}: "
             f"L{clamp_int(risk.likelihood, 1, 5)} × I{clamp_int(risk.impact, 1, 5)} = {score} ({risk_band(score)})"
         )
         lst.text(0.42, y + 0.03, clip(meta, title_chars + 8), fontsize=8.5, color=INK_3, va="top")
@@ -949,7 +949,7 @@ def chart_coverage(report: ResearchReport, colors: dict[str, str]) -> Figure | N
         for j, dim in enumerate(dims):
             value = profile.coverage.get(dim)
             if value is None:
-                fill, text, ink = SLATE[50], "–", INK_3
+                fill, text, ink = SLATE[50], "-", INK_3
             elif value <= 0:
                 fill, text, ink = "#FEF2F2", "0", "#B91C1C"
             else:
@@ -985,8 +985,8 @@ def chart_verification_funnel(report: ResearchReport, colors: dict[str, str]) ->
     frame = _frame(
         width,
         "Verification funnel",
-        f"{stats.usable} of {stats.total} extracted facts are usable ({pct(stats.usable / stats.total)}) · "
-        "each fact needs a verbatim source quote and an independent model check",
+        f"{stats.usable} of {stats.total} extracted facts are usable ({pct(stats.usable / stats.total)}). "
+        "Each fact needs a verbatim source quote and an independent model check",
         f"{stats.pending} fact{'s' if stats.pending != 1 else ''} still pending verification." if stats.pending else "",
     )
     slot = 0.62
@@ -996,7 +996,7 @@ def chart_verification_funnel(report: ResearchReport, colors: dict[str, str]) ->
     ax.set_ylim(len(stages) - 0.5, -0.5)
     for i, (_, value, color) in enumerate(stages):
         ax.barh(i, value, height=0.56, color=color, edgecolor="none")
-        ax.annotate(f"{fmt_int(value)}  ·  {pct(value / stats.total)}", (value, i), xytext=(6, 0),
+        ax.annotate(f"{fmt_int(value)} ({pct(value / stats.total)})", (value, i), xytext=(6, 0),
                     textcoords="offset points", va="center", ha="left", fontsize=10.5, color=INK,
                     annotation_clip=False)
     ax.set_yticks(range(len(stages)), labels=labels)
@@ -1029,7 +1029,7 @@ def chart_threat_levels(report: ResearchReport, colors: dict[str, str]) -> Figur
     ax.set_ylim(n - 0.5, -0.5)
     for i, (name, level) in enumerate(items):
         ax.barh(i, level, height=0.5, color=color_for(colors, name), edgecolor="none", zorder=2)
-        ax.annotate(f"{level}/5 · {threat_label(level)}", (level, i), xytext=(6, 0), textcoords="offset points",
+        ax.annotate(f"{level}/5 ({threat_label(level)})", (level, i), xytext=(6, 0), textcoords="offset points",
                     va="center", ha="left", fontsize=10, color=INK, annotation_clip=False)
     ax.set_yticks(range(n), labels=names)
     ax.set_xticks(range(1, 6), labels=[f"{k}\n{THREAT_LABELS[k]}" for k in range(1, 6)])
@@ -1065,7 +1065,7 @@ def chart_model_usage(report: ResearchReport, colors: dict[str, str]) -> Figure 
     frame = _frame(
         width,
         "Model usage",
-        f"{len(all_usage)} models · {fmt_int(calls)} LLM calls · {compact_number(tokens)} tokens in this run",
+        f"{len(all_usage)} models, {fmt_int(calls)} LLM calls, {compact_number(tokens)} tokens in this run",
         f"{hidden} lower-volume models not shown." if hidden else "",
     )
     slot, title_h, axis_band = 0.5, 0.42, 0.4
@@ -1160,7 +1160,7 @@ def chart_cost_curve(report: ResearchReport, colors: dict[str, str]) -> Figure |
         if entry and entry.monthly:
             per_seat = entry.per_seat is not False
             ys = [entry.monthly * 12 * (n if per_seat else 1) for n in TEAM_SIZES]
-            series.append((profile.name, f"{clip(one_line(profile.name), 22)} · {clip(one_line(entry.tier.name), 16)}",
+            series.append((profile.name, f"{clip(one_line(profile.name), 22)}: {clip(one_line(entry.tier.name), 16)}",
                            ys, per_seat))
     if not series:
         return None
@@ -1276,7 +1276,7 @@ def chart_feature_breadth(report: ResearchReport, colors: dict[str, str]) -> Fig
     label_w = max(_text_w(nm, 10.5, bold=True) for nm in names) + 0.3
     value_w = 1.55
     frame = _frame(width, "Capabilities confirmed by public evidence",
-                   f"Out of {total} capabilities compared · unknown means no public evidence either way")
+                   f"Out of {total} capabilities compared. Unknown means no public evidence either way")
     slot, legend_h = 0.55, 0.42
     fig = _figure(frame, legend_h + slot * n + 0.05)
     ax = _axes(fig, PAD + label_w, frame.bottom + 0.05, width - 2 * PAD - label_w - value_w, slot * n)
@@ -1294,7 +1294,7 @@ def chart_feature_breadth(report: ResearchReport, colors: dict[str, str]) -> Fig
                 ax.text(left + value / 2, i, str(value), ha="center", va="center", fontsize=9.5,
                         color=style.ink, fontweight="bold")
             left += value
-        ax.annotate(f"{c['yes']} of {total} · {pct(c['yes'] / total)}", (1, i), xycoords=("axes fraction", "data"),
+        ax.annotate(f"{c['yes']} of {total} ({pct(c['yes'] / total)})", (1, i), xycoords=("axes fraction", "data"),
                     xytext=(8, 0), textcoords="offset points", va="center", fontsize=10, color=INK,
                     fontweight="bold" if is_target(name, report) else "normal", annotation_clip=False)
     ax.set_yticks(range(n), labels=names)
@@ -1376,7 +1376,7 @@ def chart_impact_effort(report: ResearchReport, colors: dict[str, str]) -> Figur
         return None  # every action in one spot says nothing
     width, body = 8.6, 5.1
     frame = _frame(width, "Where to act first",
-                   "Each recommended action by expected impact and effort, 1 to 5 · numbers match the action plan")
+                   "Each recommended action by expected impact and effort, 1 to 5. Numbers match the action plan")
     fig = _figure(frame, body)
     left, bottom = PAD + 0.85, frame.bottom + 0.62
     ax = _axes(fig, left, bottom, width - left - PAD - 0.1, body - 0.62 - 0.45)

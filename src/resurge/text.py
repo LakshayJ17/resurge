@@ -47,7 +47,7 @@ def normalize_ws(text: str) -> str:
 
 def normalize_for_match(text: str) -> str:
     text = unicodedata.normalize("NFKC", text or "").lower()
-    text = text.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
+    text = text.replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
     text = re.sub(r"[*_`>#|]", " ", text)  # markdown noise
     return normalize_ws(text)
 
@@ -87,7 +87,9 @@ def slugify(text: str, max_len: int = 48) -> str:
 
 def truncate(text: str, n: int) -> str:
     text = text or ""
-    return text if len(text) <= n else text[: max(0, n - 1)].rstrip() + "…"
+    if len(text) <= n:
+        return text
+    return text[: n - 3].rstrip() + "..." if n > 3 else text[: max(0, n)]
 
 
 # --------------------------------------------------------------------------- #
@@ -171,7 +173,7 @@ def _shingles(words: list[str], n: int) -> set[tuple[str, ...]]:
 
 
 _GWORD = re.compile(r"[\w$€£¥₹%.,]+")
-_ELLIPSIS = re.compile(r"\s*(?:\.{3,}|…|\[\s*(?:\.{3}|…)\s*\])\s*")
+_ELLIPSIS = re.compile(r"\s*(?:\.{3,}|\u2026|\[\s*(?:\.{3}|\u2026)\s*\])\s*")
 
 
 _NUMBER = re.compile(r"\d[\d,.\u202f\u00a0 ]*\d|\d")

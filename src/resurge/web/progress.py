@@ -26,7 +26,7 @@ PHASES: tuple[tuple[str, tuple[str, ...]], ...] = (
 # Typical seconds per step for a quick run (medians of real runs); deeper runs take proportionally longer.
 TYPICAL_S = (10, 10, 20, 300, 420, 200, 35)
 DEPTH_SCALE = {"quick": 1.0, "standard": 1.8, "deep": 3.2}
-DEPTH_TYPICAL = {"quick": "usually 10–20 minutes", "standard": "usually 25–40 minutes", "deep": "usually about an hour"}
+DEPTH_TYPICAL = {"quick": "usually 10 to 20 minutes", "standard": "usually 25 to 40 minutes", "deep": "usually about an hour"}
 DEPTH_SLOW_S = {"quick": 25 * 60, "standard": 50 * 60, "deep": 80 * 60}  # past this, say the free models are slow
 
 # What each pipeline stage is doing, in words a visitor understands
@@ -57,9 +57,11 @@ _VERIFIED = re.compile(r"Batch verified: (\d+)/\d+ usable")
 _REUSED = re.compile(r"Reusing (\d+) verified facts")
 _HANDOFF = re.compile(r"(\d+) verified facts handed")
 _DIMENSIONS = re.compile(r"\(([a-z_]+(?:, [a-z_]+)*)\)$")
-_FILE_LINE = re.compile(r"^[a-z_]+: (?:/|[A-Za-z]:\\)")  # "pdf: /srv/reports/…/report.pdf"
-# absolute paths wherever they appear ('…/x', (…/x), =/x, ~/x), but not the path part of a URL (after ":" or "/")
+_FILE_LINE = re.compile(r"^[a-z_]+: (?:/|[A-Za-z]:\\)")  # "pdf: /srv/reports/.../report.pdf"
+# absolute paths wherever they appear ('.../x', (.../x), =/x, ~/x), but not the path part of a URL (after ":" or "/")
 _ABS_PATH = re.compile(r"(?<![\w.:/])~?(?:/[\w.\-]+){2,}/?|(?<![\w])[A-Za-z]:\\[^\s'\")]+")
+# 'unknown industry (acme.com)' -> 'acme.com'; the second form is how older runs logged it
+_UNKNOWN_INDUSTRY = re.compile(r"^unknown industry (?:\((.+)\)|\u00b7 (.+))$")
 _TECH_AGENTS = ("Model Router", "Chief Technology Officer")
 # What a finished step produced, shown under its title: (step, pattern, template)
 _RESULTS = (
@@ -146,7 +148,7 @@ def summarize(events: list[dict[str, Any]], status: str, depth: str = "quick") -
             counts["ai_calls"] += 1
         for step, pattern, template in _RESULTS:
             if m := pattern.search(message):
-                phases[step]["result"] = template.format(*m.groups()).removeprefix("unknown industry · ")[:160]
+                phases[step]["result"] = _UNKNOWN_INDUSTRY.sub(r"\1\2", template.format(*m.groups()))[:160]
         if m := _PAGES.search(message):
             counts["pages"] += int(m.group(1))
         if m := _VERIFIED.search(message):

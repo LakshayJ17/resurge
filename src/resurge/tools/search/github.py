@@ -69,7 +69,7 @@ class GitHubBackend(SearchBackend):
         """Results from a ``/search/repositories`` response."""
         out = []
         for repo in (data or {}).get("items") or []:
-            meta = [f"★ {int(repo.get('stargazers_count') or 0):,}"]
+            meta = [f"{int(repo.get('stargazers_count') or 0):,} stars"]
             if repo.get("language"):
                 meta.append(str(repo["language"]))
             meta.append(f"forks {int(repo.get('forks_count') or 0):,}")
@@ -81,7 +81,7 @@ class GitHubBackend(SearchBackend):
                     meta.append(spdx)
             if repo.get("archived"):
                 meta.append("archived")
-            snippet = f"{repo.get('description') or 'No description'} ({' · '.join(meta)})."
+            snippet = f"{repo.get('description') or 'No description'} ({', '.join(meta)})."
             if topics := repo.get("topics"):
                 snippet += f" Topics: {', '.join(topics[:8])}."
             if homepage := repo.get("homepage"):

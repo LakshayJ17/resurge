@@ -58,7 +58,7 @@ _MD_URL_ESCAPES = {"(": "%28", ")": "%29", "[": "%5B", "]": "%5D", "'": "%27", "
 def md_text(value: object) -> str:
     """Untrusted text made inert on one line.
 
-    Raw HTML (``<script>``, ``<img onerror=…>``) is entity-escaped; link, image,
+    Raw HTML (``<script>``, ``<img onerror=...>``) is entity-escaped; link, image,
     emphasis, code and table syntax is backslash-escaped; and a leading heading,
     list or rule marker is escaped so the text cannot start a new block.
     """
@@ -134,7 +134,7 @@ class _Writer:
     def insight(self, item: Insight) -> str:
         conf = insight_confidence(item, self.facts)
         prefix = "*(inferred)* " if item.inferred else ""
-        suffix = f" — *{pct(conf)} confidence*" if conf is not None else ""
+        suffix = f" (*{pct(conf)} confidence*)" if conf is not None else ""
         return f"- {prefix}{md_text(item.text)}{suffix}{self.cite(item.fact_ids)}"
 
     def insights(self, items: Sequence[Insight], empty: str = "_Nothing reported._") -> str:
@@ -164,7 +164,7 @@ class _Writer:
             self.add(f"> **{md_text(es.headline)}**")
         meta = [f"Prepared for the {md_text(brief.audience)}", fmt_date(r.created_at), md_text(brief.industry),
                 md_text(brief.region), f"run {md_code(r.run_id)}"]
-        self.add("*" + " · ".join(m for m in meta if m) + "*")
+        self.add("*" + " | ".join(m for m in meta if m) + "*")
         hero = metrics_by_key(r, ("competitors", "facts_usable", "verification_rate", "quality_score"))
         self.add(md_table([m.label for m in hero], [[m.display for m in hero]], ["c"] * len(hero)))
 
@@ -216,7 +216,7 @@ class _Writer:
             return False
         self.add("## By the numbers",
                  md_table(["", "Figure", "Detail"],
-                          [[f"**{md_text(st.value)}**", md_text(st.label), md_text(st.detail) or "—"] for st in stats],
+                          [[f"**{md_text(st.value)}**", md_text(st.label), md_text(st.detail) or "-"] for st in stats],
                           ["r", "l", "l"]))
         return True
 
@@ -232,8 +232,8 @@ class _Writer:
             summary = (profile.summary if profile and profile.summary else None) or (
                 comp.description if comp and comp.description else "")
             level = profile.threat_level if profile else None
-            threat = f"{clamp_int(level, 1, 5)}/5 · {threat_label(level)}" if level is not None else "Unrated"
-            rows.append([f"**{md_text(name)}**", md_text(one_line(category).title()) or "—", md_text(summary) or "—",
+            threat = f"{clamp_int(level, 1, 5)}/5 ({threat_label(level)})" if level is not None else "Unrated"
+            rows.append([f"**{md_text(name)}**", md_text(one_line(category).title()) or "-", md_text(summary) or "-",
                          threat])
         if not rows:
             return False
@@ -251,10 +251,10 @@ class _Writer:
             for company in companies:
                 cell = cells.get((feature, company))
                 style = CELL_STATUS.get(cell.status if cell else "unknown", CELL_STATUS["unknown"])
-                note = f" — {md_text(cell.note)}" if cell and cell.note else ""
+                note = f": {md_text(cell.note)}" if cell and cell.note else ""
                 row.append(f"{style.glyph} {style.label}{note}{self.cite(cell.fact_ids) if cell else ''}")
             rows.append(row)
-        legend = " · ".join(f"{s.glyph} {s.label}" for s in CELL_STATUS.values())
+        legend = ", ".join(f"{s.glyph} {s.label}" for s in CELL_STATUS.values())
         self.add("## Feature comparison", self.chart("feature_breadth"), self.chart("feature_matrix"),
                  md_table(["Feature", *(md_text(c) for c in companies)], rows), f"*Legend: {legend}*")
         return True
@@ -264,8 +264,8 @@ class _Writer:
         for p in self.r.profiles:
             for k, t in enumerate(p.pricing):
                 usd = f"{t.price_monthly_usd:,.2f}".rstrip("0").rstrip(".") if t.price_monthly_usd is not None else ""
-                rows.append([f"**{md_text(p.name)}**" if k == 0 else "", md_text(t.name), md_text(t.price) or "—",
-                             f"${usd}" if usd else "—", md_text(t.billing),
+                rows.append([f"**{md_text(p.name)}**" if k == 0 else "", md_text(t.name), md_text(t.price) or "-",
+                             f"${usd}" if usd else "-", md_text(t.billing),
                              md_text(join(t.highlights)) + self.cite(t.fact_ids)])
         if not rows:
             return False
@@ -303,13 +303,13 @@ class _Writer:
                 ("Pricing model", md_text(p.pricing_model)),
                 ("Threat level", f"{clamp_int(p.threat_level, 1, 5)}/5 ({threat_label(p.threat_level)})"
                  if p.threat_level is not None else ""),
-                ("Sentiment", (f"{p.sentiment_score:+.2f} — " if p.sentiment_score is not None else "")
-                 + md_text(p.sentiment_summary)),
+                ("Sentiment", ", ".join(x for x in ((f"{p.sentiment_score:+.2f}" if p.sentiment_score is not None else ""),
+                                    md_text(p.sentiment_summary)) if x)),
                 ("Target customers", md_text(join(p.target_customers))),
                 ("Products", md_text(join(p.products))),
                 ("Key features", md_text(join(p.key_features))),
             ]
-            self.add("\n".join(f"- **{k}:** {v}" for k, v in details if v.strip(" —")))
+            self.add("\n".join(f"- **{k}:** {v}" for k, v in details if v.strip()))
             self.add("**Strengths**", self.insights(p.strengths), "**Weaknesses**", self.insights(p.weaknesses))
             if p.recent_moves:
                 self.add("**Recent moves**", self.insights(p.recent_moves))
@@ -373,7 +373,7 @@ class _Writer:
         if recs:
             when = {"now": "Now (0-30 d)", "next": "Next (30-90 d)", "later": "Later (90+ d)"}
             rows = [[str(i), f"**{md_text(r.title)}**{self.cite(r.fact_ids)}", when.get(r.timeframe, r.timeframe),
-                     md_text(r.first_step) or "—", md_text(r.owner) or "—", md_text(r.metric) or "—",
+                     md_text(r.first_step) or "-", md_text(r.owner) or "-", md_text(r.metric) or "-",
                      r.priority.title(), md_text(r.rationale)]
                     for i, r in enumerate(recs, 1)]
             self.add("### Action plan", self.chart("impact_effort"),
@@ -393,7 +393,7 @@ class _Writer:
                          + (f"<br>{md_text(r.description)}" if r.description else ""),
                          md_text(RISK_CATEGORY_LABELS.get(r.category, r.category)),
                          f"{clamp_int(r.likelihood, 1, 5)} × {clamp_int(r.impact, 1, 5)}",
-                         f"{score} · {risk_band(score)}", md_text(r.mitigation), md_text(r.owner)])
+                         f"{score} ({risk_band(score)})", md_text(r.mitigation), md_text(r.owner)])
         self.add("## Risk register", self.chart("risk_heatmap"),
                  md_table(["ID", "Risk", "Category", "L × I", "Score", "Mitigation", "Owner"], rows))
         return True
@@ -413,7 +413,7 @@ class _Writer:
             if b.objections:
                 self.add("**Objection handling**",
                          md_table(["They say", "We say"],
-                                  [[f"“{md_text(o.objection)}”", md_text(o.response)] for o in b.objections]))
+                                  [[f'"{md_text(o.objection)}"', md_text(o.response)] for o in b.objections]))
             if b.pricing_talk_track:
                 self.add(f"**Pricing talk track:** {md_text(b.pricing_talk_track)}")
             if b.fact_ids:
@@ -452,8 +452,8 @@ class _Writer:
             for dept, agents in groups.items():
                 lines.append(f"- **{md_text(dept)}**")
                 for a in agents:
-                    models = ", ".join(md_code(m) for m in a.models_used if one_line(m)) or "—"
-                    lines.append(f"  - {md_text(a.title or a.key)} — {md_text(a.mission)} ({models})")
+                    models = ", ".join(md_code(m) for m in a.models_used if one_line(m)) or "-"
+                    lines.append(f"  - {md_text(a.title or a.key)}: {md_text(a.mission)} ({models})")
             self.add("### Research organisation", "\n".join(lines))
         if r.lessons_applied:
             self.add("### Lessons applied from earlier runs",
@@ -484,12 +484,12 @@ class _Writer:
             status = FACT_STATUS.get(f.status, FACT_STATUS["pending"])
             claim = md_text(f.claim) + (f" *({md_text(f.value)})*" if f.value else "")
             if f.quote:
-                claim += f"<br>“*{md_text(f.quote)}*”"
+                claim += f'<br>"*{md_text(f.quote)}*"'
             links = " ".join(md_link(md_text(domain_of(u) or u), u) for u in f.source_urls if md_url(u))
             rows.append([f'<a id="{fact_anchor(fid)}"></a>{md_code(fid)}',
                          md_text(f.competitor), md_text(pretty_dimension(f.dimension)), claim,
                          f"{status.glyph} {status.label}", pct(f.confidence), "yes" if f.grounded else "no",
-                         links or "—"])
+                         links or "-"])
         self.add(md_table(["ID", "Competitor", "Dimension", "Claim", "Status", "Confidence", "Grounded", "Sources"],
                           rows, ["l", "l", "l", "l", "l", "r", "c", "l"]))
 
@@ -529,7 +529,7 @@ class _Writer:
         self.blocks = self.blocks[:body_start]
         self.toc(sections)
         self.blocks += body
-        self.add("---", "*Generated by Resurge · AI-researched, multi-model verified*")
+        self.add("---", "*Generated by Resurge. AI-researched, multi-model verified.*")
         return "\n\n".join(self.blocks) + "\n"
 
 

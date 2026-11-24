@@ -3,11 +3,11 @@
 This is the technical companion to the [README](../README.md). It covers the architecture, every stage of a run,
 how models are chosen, the agent roster, how claims are verified, the guardrails, and how each run improves the next.
 
-**Contents:** [Architecture](#architecture) · [A run, start to finish](#a-run-start-to-finish) ·
-[One research round](#inside-one-research-round) · [Model routing](#how-a-model-is-picked-for-each-call) ·
-[The agents](#the-agents) · [Validation](#validation) · [Guardrails](#guardrails) ·
-[Self-improvement](#self-improvement) · [Staying free](#staying-free) · [Performance](#cost-and-performance) ·
-[Hosted app flow](#hosted-app-request-flow) · [Example run](#example-run)
+**Contents:** [Architecture](#architecture), [A run, start to finish](#a-run-start-to-finish),
+[One research round](#inside-one-research-round), [Model routing](#how-a-model-is-picked-for-each-call),
+[The agents](#the-agents), [Validation](#validation), [Guardrails](#guardrails),
+[Self-improvement](#self-improvement), [Staying free](#staying-free), [Performance](#cost-and-performance),
+[Hosted app flow](#hosted-app-request-flow), [Example run](#example-run)
 
 ---
 
@@ -20,25 +20,25 @@ Four ways in, one engine. Agents never call a model or the web directly: every m
 flowchart TB
   subgraph IN["Ways in"]
     direction LR
-    CLI["CLI<br/>resurge run · chat"] ~~~ DASH["Local dashboard<br/>resurge ui"] ~~~ WEB["Hosted web app<br/>resurge serve"] ~~~ MCPS["MCP server<br/>resurge mcp"]
+    CLI["CLI<br/>resurge run, resurge chat"] ~~~ DASH["Local dashboard<br/>resurge ui"] ~~~ WEB["Hosted web app<br/>resurge serve"] ~~~ MCPS["MCP server<br/>resurge mcp"]
   end
 
-  IN --> CHECK["Input checks<br/>rules · Prompt Guard 2 · policy model"]
-  CHECK --> COO["COO orchestrator<br/>12 stages · shared run context · CFO budget"]
-  CHECK --> CHAT["Chat (RAG)<br/>hybrid retrieval · cited answers"]
+  IN --> CHECK["Input checks<br/>rules, Prompt Guard 2, policy model"]
+  CHECK --> COO["COO orchestrator<br/>12 stages, shared run context, CFO budget"]
+  CHECK --> CHAT["Chat (RAG)<br/>hybrid retrieval, cited answers"]
   COO --> AGENTS["22 agents in 10 departments<br/>Validation Engine checks every hand-off"]
 
-  AGENTS --> TOOLS["Research tools<br/>search router · polite fetcher · Security Officer"]
-  AGENTS --> GW["LLM gateway (CTO)<br/>router · quotas · failover · JSON repair · cache"]
-  AGENTS --> PUB["Publishing Desk<br/>html · pdf · pptx · site · md · json · charts"]
+  AGENTS --> TOOLS["Research tools<br/>search router, polite fetcher, Security Officer"]
+  AGENTS --> GW["LLM gateway (CTO)<br/>router, quotas, failover, JSON repair, cache"]
+  AGENTS --> PUB["Publishing Desk<br/>html, pdf, pptx, site, md, json, charts"]
   CHAT --> GW
 
   TOOLS --> NET(["Public web<br/>robots.txt and site terms honoured"])
-  GW --> PROV(["Free model tiers<br/>Groq · Gemini · OpenRouter · Mistral ·<br/>NVIDIA NIM · Cloudflare · Cerebras · Ollama"])
+  GW --> PROV(["Free model tiers<br/>Groq, Gemini, OpenRouter, Mistral,<br/>NVIDIA NIM, Cloudflare, Cerebras, Ollama"])
   PUB --> QD[("Qdrant<br/>chat index")]
   QD --> CHAT
 
-  AGENTS <-.-> DB[("SQLite<br/>caches · runs · facts · quotas ·<br/>reputations · playbooks")]
+  AGENTS <-.-> DB[("SQLite<br/>caches, runs, facts, quotas,<br/>reputations, playbooks")]
 ```
 
 Which checks run where: chat questions get every layer on every surface. Research requests get every layer in the
@@ -68,24 +68,24 @@ own terminal and skips request checks. Web pages are screened separately by the 
 ```mermaid
 flowchart TD
   REQ(["Request: a company, optional competitors and questions, a depth"]) --> S1
-  S1["1 · Intake<br/>Chief of Staff writes the brief"] --> S2
-  S2["2 · Competitive set<br/>Market Scout finds the rivals,<br/>or resolves the websites of those given"] --> S3
-  S3["3 · Knowledge reuse<br/>verified facts under 3 days old skip their questions"] --> S4
-  S4["4 · Research plan<br/>Strategist: topics → questions → search queries"] --> S5
-  S5["5 · Research<br/>search · fetch · extract, per company<br/>(details below)"] --> V1
+  S1["Stage 1: Intake<br/>Chief of Staff writes the brief"] --> S2
+  S2["Stage 2: Competitive set<br/>Market Scout finds the rivals,<br/>or resolves the websites of those given"] --> S3
+  S3["Stage 3: Knowledge reuse<br/>verified facts under 3 days old skip their questions"] --> S4
+  S4["Stage 4: Research plan<br/>Strategist: topics, then questions, then search queries"] --> S5
+  S5["Stage 5: Research<br/>search, fetch and extract, per company<br/>(details below)"] --> V1
   V1{"Is the quote really<br/>in the source?"}
   V1 -- no --> RJ["rejected"]
   V1 -- yes --> V2["Fact Checker<br/>a different model family re-reads the source"]
   V2 --> V3["Confidence score<br/>verdict × source reliability<br/>+ corroboration − staleness"]
   V3 --> GAP{"Topics with<br/>no facts?"}
-  GAP -- "yes, budget left" --> S6["6 · Gap closing<br/>follow-up questions"] --> S5
-  GAP -- no --> S7["7 · Analysis<br/>profiles · feature matrix · head-to-head ·<br/>positioning · market · action plan"]
-  S7 --> QA{"8 · QA Reviewer<br/>passes the rubric?"}
+  GAP -- "yes, budget left" --> S6["Stage 6: Gap closing<br/>follow-up questions"] --> S5
+  GAP -- no --> S7["Stage 7: Analysis<br/>profiles, feature matrix, head-to-head,<br/>positioning, market, action plan"]
+  S7 --> QA{"Stage 8: QA Reviewer<br/>passes the rubric?"}
   QA -- "revise, with the issues" --> S7
-  QA -- pass --> S9["9 · Risk register"]
-  S9 --> S10["10 · Battlecards and executive summary"]
-  S10 --> S11["11 · Output guardrails, then publish<br/>every format + chat index"]
-  S11 --> S12["12 · Retrospective<br/>lessons · model and source reputations"]
+  QA -- pass --> S9["Stage 9: Risk register"]
+  S9 --> S10["Stage 10: Battlecards and executive summary"]
+  S10 --> S11["Stage 11: Output guardrails, then publish<br/>every format + chat index"]
+  S11 --> S12["Stage 12: Retrospective<br/>lessons, model and source reputations"]
   S12 -. "makes the next run better" .-> S4
 ```
 
@@ -113,13 +113,13 @@ Each company gets its own round:
 flowchart TD
   Q["Questions for one company"] --> SR["Search router<br/>several backends, rank fusion, cached 24 h"]
   SR --> PICK["Pick the best URLs, official site first"]
-  PICK --> OKF{"May we fetch it?<br/>site terms · robots.txt · public address"}
+  PICK --> OKF{"May we fetch it?<br/>site terms, robots.txt, public address"}
   OKF -- no --> SNIP["Search snippet only"]
-  OKF -- yes --> GET["Polite fetch<br/>one request at a time per site · Retry-After ·<br/>circuit breaker · cached 3 days"]
-  GET --> SEC["Security Officer<br/>strip hidden text · quarantine instructions ·<br/>redact emails and phones · Prompt Guard"]
+  OKF -- yes --> GET["Polite fetch<br/>one request at a time per site, Retry-After,<br/>circuit breaker, cached 3 days"]
+  GET --> SEC["Security Officer<br/>strip hidden text, quarantine instructions,<br/>redact emails and phones, Prompt Guard"]
   SNIP --> SEC
   SEC --> BM["BM25 picks the top chunks per question"]
-  BM --> EX["Specialist researcher<br/>sources in a fenced block → claim + exact quote"]
+  BM --> EX["Specialist researcher<br/>sources in a fenced block, returns claim + exact quote"]
   EX --> GR{"Quote overlap<br/>with the chunk"}
   GR -- "0.6 or more" --> FC["Fact Checker, 8 facts per call"]
   GR -- "0.45 to 0.6" --> FC
@@ -140,7 +140,7 @@ flowchart TD
   T --> Q{"Quota free now?<br/>requests and tokens,<br/>per minute and per day"}
   Q -- "wait over 25 s" --> NEXT["Next candidate"]
   Q -- yes --> CALL["Call the provider"]
-  CALL -- "busy · timeout · quota" --> LEARN["Record the failure, honour retry-after,<br/>disable models that are gone"] --> NEXT
+  CALL -- "busy, timeout or quota" --> LEARN["Record the failure, honour retry-after,<br/>disable models that are gone"] --> NEXT
   CALL -- ok --> P{"Valid JSON that<br/>passes the validators?"}
   P -- no --> FIX["Repair, ask the same model to fix it,<br/>then try a different model"] --> NEXT
   P -- yes --> R["Use it and update the model's stats"]
@@ -152,30 +152,30 @@ specifics: seamless)*: the answer was rejected and rewritten, not lost.
 
 ## The agents
 
-| Department | Agent | Job | Default free models (first choice → fallbacks) |
+| Department | Agent | Job | Default free models (in order of preference) |
 |---|---|---|---|
-| Executive Office | **CEO** | Narrative, executive summary, sign-off | Gemini 3.8 Flash → Nemotron-3-Ultra 550B → gpt-oss-120b |
-| | **Chief of Staff** | Turns the request into a precise brief | gpt-oss-20b (Groq) → Gemini 3.1 Flash-Lite → Gemma-4-26B |
-| Finance | **CFO** *(code)* | Per-run budgets, quota reserve, cost accounting | — 0 tokens |
-| Infrastructure | **CTO / Model Router** *(code)* | Quota-aware routing, failover, learning | — 0 tokens |
-| Strategy & Planning | **Market Scout** | Discovers and qualifies the competitive set | gpt-oss-120b → Gemini Flash-Lite → Qwen3.8 |
-| | **Research Strategist** | Dimensions, questions, queries, sources; closes gaps | Qwen3.8-27B → gpt-oss-120b |
-| Research | **Product & Pricing Researcher** | Products, features, pricing, positioning | Gemini 3.5 Flash-Lite → Gemma-4-31B |
-| | **Market & Funding Researcher** | Funding, news, go-to-market, hiring | Gemma-4-31B → Gemini 3.1 Flash-Lite |
-| | **Voice-of-Customer Researcher** | Reviews, community sentiment, segments | gpt-oss-20b → Gemma-4-26B |
-| | **Technology Researcher** | Integrations, APIs, AI, open source | Mistral Small → Gemini 3.1 Flash-Lite |
-| Quality Assurance | **Validation Engine** *(code)* | Schema, citation-integrity, quote-grounding, coverage gates | — 0 tokens |
-| | **Fact Checker** | Claim ⇄ source entailment, **different model family** | Qwen3.8-27B → Gemma-4-31B → gpt-oss-120b (NIM) |
-| | **QA Reviewer** | Rubric scoring, sends work back for revision | Nemotron-3-Ultra → gpt-oss-120b |
-| Analysis | **Data Analyst** | Profiles and pricing tables from verified facts | Gemini 3.5 Flash-Lite → gpt-oss-120b |
-| | **Strategy Analyst** | Feature matrix, head-to-head vs the client, positioning, market changes, gaps, action plan | gpt-oss-120b → Gemini 3.6 Flash → Nemotron |
-| Risk Office | **Chief Risk Officer** | Competitive, market, research-quality, compliance risks | Nemotron-3-Ultra → Qwen3.8 → gpt-oss-120b |
+| Executive Office | **CEO** | Narrative, executive summary, sign-off | Gemini 3.8 Flash, Nemotron-3-Ultra 550B, gpt-oss-120b |
+| | **Chief of Staff** | Turns the request into a precise brief | gpt-oss-20b (Groq), Gemini 3.1 Flash-Lite, Gemma-4-26B |
+| Finance | **CFO** *(code)* | Per-run budgets, quota reserve, cost accounting | None (0 tokens) |
+| Infrastructure | **CTO / Model Router** *(code)* | Quota-aware routing, failover, learning | None (0 tokens) |
+| Strategy & Planning | **Market Scout** | Discovers and qualifies the competitive set | gpt-oss-120b, Gemini Flash-Lite, Qwen3.8 |
+| | **Research Strategist** | Dimensions, questions, queries, sources; closes gaps | Qwen3.8-27B, gpt-oss-120b |
+| Research | **Product & Pricing Researcher** | Products, features, pricing, positioning | Gemini 3.5 Flash-Lite, Gemma-4-31B |
+| | **Market & Funding Researcher** | Funding, news, go-to-market, hiring | Gemma-4-31B, Gemini 3.1 Flash-Lite |
+| | **Voice-of-Customer Researcher** | Reviews, community sentiment, segments | gpt-oss-20b, Gemma-4-26B |
+| | **Technology Researcher** | Integrations, APIs, AI, open source | Mistral Small, Gemini 3.1 Flash-Lite |
+| Quality Assurance | **Validation Engine** *(code)* | Schema, citation-integrity, quote-grounding, coverage gates | None (0 tokens) |
+| | **Fact Checker** | Checks each claim against its source, **different model family** | Qwen3.8-27B, Gemma-4-31B, gpt-oss-120b (NIM) |
+| | **QA Reviewer** | Rubric scoring, sends work back for revision | Nemotron-3-Ultra, gpt-oss-120b |
+| Analysis | **Data Analyst** | Profiles and pricing tables from verified facts | Gemini 3.5 Flash-Lite, gpt-oss-120b |
+| | **Strategy Analyst** | Feature matrix, head-to-head vs the client, positioning, market changes, gaps, action plan | gpt-oss-120b, Gemini 3.6 Flash, Nemotron |
+| Risk Office | **Chief Risk Officer** | Competitive, market, research-quality, compliance risks | Nemotron-3-Ultra, Qwen3.8, gpt-oss-120b |
 | | **Security & Compliance Officer** *(code + optional ML)* | Prompt-injection screening, PII redaction, robots.txt and site-terms enforcement | deterministic; Llama Prompt Guard 2 (Groq, free) for borderline text |
-| Design & Comms | **Enablement Writer** | Sales battlecards and objection handling | Mistral Medium → Gemini 3.6 Flash → gpt-oss-120b |
-| | **Visualization Designer** *(code)* | Charts | — |
-| | **Publishing Desk** *(code)* | HTML report, PDF, deck, Markdown, JSON, Sheets, alerts | — |
-| Learning & Development | **Retrospective Analyst** | Turns failures into lessons (ACE reflector) | gpt-oss-120b → Nemotron |
-| | **Playbook Curator** *(code)* | Dedupes, caps, prunes lessons; updates reputations | — |
+| Design & Comms | **Enablement Writer** | Sales battlecards and objection handling | Mistral Medium, Gemini 3.6 Flash, gpt-oss-120b |
+| | **Visualization Designer** *(code)* | Charts | None |
+| | **Publishing Desk** *(code)* | HTML report, PDF, deck, Markdown, JSON, Sheets, alerts | None |
+| Learning & Development | **Retrospective Analyst** | Turns failures into lessons (ACE reflector) | gpt-oss-120b, Nemotron |
+| | **Playbook Curator** *(code)* | Dedupes, caps, prunes lessons; updates reputations | None |
 
 `resurge org` prints this table with the models each role would route to **right now**, given your keys, quotas and
 learned performance. Routing lives in [`config/models.yaml`](../config/models.yaml). Every department prefers a
@@ -184,14 +184,14 @@ different model family, and the router adds the rest of the free pool plus local
 ## Validation
 
 1. **No source, no claim.** Researchers must return `evidence_id` plus a **verbatim quote** for every fact.
-2. **Quote grounding (code, 0 tokens).** The quote must literally appear in the cited chunk (shingle overlap ≥ 0.6).
-   Near-matches (0.45–0.6, typical of paraphrasing small models) go to the verifier with a confidence penalty, and
+2. **Quote grounding (code, 0 tokens).** The quote must literally appear in the cited chunk (shingle overlap of at least 0.6).
+   Near-matches (0.45 to 0.6, typical of paraphrasing small models) go to the verifier with a confidence penalty, and
    anything lower is rejected before any LLM sees it. This catches invented numbers and wrong-company claims cheaply.
 3. **Cross-family fact checking.** The Fact Checker uses a different model family than the extractor (e.g. Gemma
    extracts, Qwen verifies), so the two are unlikely to share the same mistake. Verdicts are
    supported / partial / unsupported / contradicted, and small corrections are applied.
 4. **Entity disambiguation.** Each company's identity comes from its official homepage title and official redirects
-   (e.g. notion.so ↔ notion.com). Researchers and the Fact Checker see it, so a namesake (e.g. *coda.co*, a payments
+   (e.g. notion.so and notion.com). Researchers and the Fact Checker see it, so a namesake (e.g. *coda.co*, a payments
    company, vs *coda.io*) is rejected. A deterministic namesake-domain penalty backs this up. Mis-filed facts are
    re-filed to the right dimension.
 5. **Confidence model.** Confidence combines the verdict, the **learned** reliability of the source domain,
@@ -212,14 +212,14 @@ token), API keys, personal data and instruction residue.
 
 ```mermaid
 flowchart TD
-  IN["Research request or chat question"] --> L1{"1 · Rules<br/>instant, free"}
+  IN["Research request or chat question"] --> L1{"Layer 1: rules<br/>instant, free"}
   L1 -- "instruction-like" --> NO["Refused, with a plain-English reason"]
-  L1 -- ok --> L2{"2 · Llama Prompt Guard 2<br/>jailbreak score 0.9 or more?"}
+  L1 -- ok --> L2{"Layer 2: Llama Prompt Guard 2<br/>jailbreak score 0.9 or more?"}
   L2 -- yes --> NO
-  L2 -- no --> L3{"3 · gpt-oss-safeguard-20b<br/>written acceptable-use policy"}
-  L3 -- "injection · harm · espionage ·<br/>privacy · deception" --> NO
+  L2 -- no --> L3{"Layer 3: gpt-oss-safeguard-20b<br/>written acceptable-use policy"}
+  L3 -- "injection, harm, espionage,<br/>privacy or deception" --> NO
   L3 -- allowed --> YES["Research runs or the answer is written"]
-  YES --> OUTC["Output check<br/>canary · API keys · personal data ·<br/>instruction text · script links"]
+  YES --> OUTC["Output check<br/>canary, API keys, personal data,<br/>instruction text, script links"]
   OUTC --> SAFE["Shown to the user"]
   NO -. "hosted app" .-> STRIKE["Strike in the audit log<br/>5 in 24 h pauses the account for the day"]
 ```
@@ -232,7 +232,7 @@ Code: [`guardrails.py`](../src/resurge/guardrails.py). Crawling and data policy:
 
 ```mermaid
 flowchart LR
-  RUN["A run"] --> SIG["Validated signals<br/>grounding · fact-check verdicts ·<br/>QA scores · errors"]
+  RUN["A run"] --> SIG["Validated signals<br/>grounding, fact-check verdicts,<br/>QA scores, errors"]
   SIG --> M["Model reputation"] --> R1["Router sends more<br/>work to good models"]
   SIG --> S["Source reliability"] --> R2["Confidence scores"]
   SIG --> Q["Search strategy"] --> R3["site: queries for<br/>sources that worked"]
@@ -245,7 +245,7 @@ flowchart LR
 | Model reputation | per (role, model): JSON validity, share of facts that survive grounding and verification, QA scores | Router uses Thompson sampling over these stats, so better models get more traffic and new ones still get explored |
 | Source reputation | per domain: supported vs unsupported verdicts | Bayesian reliability feeds confidence scores |
 | Research strategy | which domains yield verified facts for each dimension | Strategist adds `site:` queries for proven sources |
-| Playbooks (ACE, ICLR 2026) | Reflector reads concrete failures (rejected facts, QA issues, gaps, errors) | Curator stores ≤30-word lessons **only for roles that actually failed this run**, deduplicated and capped at 12 per role. Helpful/harmful counters are tied to run-quality deltas. Retirement is **evidence-gated**: an LLM's opinion alone cannot delete a lesson with a good track record |
+| Playbooks (ACE, ICLR 2026) | Reflector reads concrete failures (rejected facts, QA issues, gaps, errors) | Curator stores lessons of up to 30 words **only for roles that actually failed this run**, deduplicated and capped at 12 per role. Helpful/harmful counters are tied to run-quality deltas. Retirement is **evidence-gated**: an LLM's opinion alone cannot delete a lesson with a good track record |
 
 `resurge learn` shows the playbook, the model leaderboard, source reputation and the quality trend. The dashboard has
 the same data. ACE's known weakness is learning from unreliable signals; here the validators supply the outcome
@@ -272,7 +272,7 @@ research behind these choices, with sources: [RESEARCH.md](RESEARCH.md).
 1. **Deterministic where possible.** Validation, grounding, confidence, routing, budgeting, charts and publishing are
    code, not LLM calls.
 2. **Retrieval before reasoning.** Pages are chunked and BM25-ranked locally, and each researcher sees only the top
-   chunks for its questions (≈3.5K tokens instead of 50K+ per page set).
+   chunks for its questions (about 3.5K tokens instead of 50K+ per page set).
 3. **Tiered models per role.** Small models do classification, mid-size models do extraction, and the scarce frontier
    free quota goes to synthesis.
 4. **Quota-aware routing.** Sliding-window RPM/TPM and persistent RPD/TPD counters per model and per provider. The day

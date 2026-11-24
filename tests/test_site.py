@@ -212,5 +212,5 @@ def test_no_template_slop(site) -> None:
     _, _, pages = site
     for name, html in pages.items():
         body = html.split("<body>", 1)[1]
-        assert "→" not in body and "✦" not in body and "eyebrow" not in body, name
+        assert "\u2192" not in body and "\u2726" not in body and "eyebrow" not in body, name
         assert "text-transform: uppercase" not in html and "pill" not in body, name

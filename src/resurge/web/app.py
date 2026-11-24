@@ -38,6 +38,8 @@ from ..text import slugify
 
 STATIC = Path(__file__).parent / "static"
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+# Ask-page scripts of reports published by earlier versions, so their pages keep working after the script changes
+LEGACY_ASK_HASHES = ("sha256-27TzDfke4dLEUUH2Ju9MtSuDv4z7HHjk0XDZKs3Rnww=",)
 
 
 def report_csp() -> str:
@@ -50,8 +52,9 @@ def report_csp() -> str:
     from ..outputs.site import ASK_SCRIPT
 
     ask = "sha256-" + base64.b64encode(hashlib.sha256(ASK_SCRIPT.encode()).digest()).decode()
+    allowed = " ".join(f"'{h}'" for h in (ask, *LEGACY_ASK_HASHES, SCRIPT_HASH.strip(chr(39))))
     return ("default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; connect-src 'self'; "
-            f"script-src '{ask}' '{SCRIPT_HASH.strip(chr(39))}'; base-uri 'none'; form-action 'none'; "
+            f"script-src {allowed}; base-uri 'none'; form-action 'none'; "
             "frame-ancestors 'none'")
 
 

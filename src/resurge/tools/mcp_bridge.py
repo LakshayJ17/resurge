@@ -485,7 +485,7 @@ def _as_text(value: Any) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, (list, tuple)):
-        return " … ".join(_as_text(v) for v in value if v not in (None, ""))
+        return " ... ".join(_as_text(v) for v in value if v not in (None, ""))
     if isinstance(value, Mapping):
         return _as_text(_first(value, ("text", "content", "snippet", "description")) or "")
     return "" if value is None else str(value)
@@ -571,10 +571,10 @@ def _clean_url(url: str) -> str:
 
 def _title_from_line(line: str, url: str) -> str:
     text = line.replace(url, " ")
-    text = re.sub(r"^[ \t]*(?:[-*>•]|\d+[.)])[ \t]*", "", text)
+    text = re.sub(r"^[ \t]*(?:[-*>\u2022]|\d+[.)])[ \t]*", "", text)
     text = re.sub(r"[*_`#]+|\(\s*\)|<\s*>", " ", text)
-    text = re.sub(r"\s*(?:[-–—|:]|URL|Link)\s*$", "", text.strip(), flags=re.I)
-    return " ".join(text.split()).strip(" -–—|:")
+    text = re.sub(r"\s*(?:[-\u2013\u2014|:]|URL|Link)\s*$", "", text.strip(), flags=re.I)
+    return " ".join(text.split()).strip(" -\u2013\u2014|:")
 
 
 def _dedupe(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -318,17 +318,17 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
 <p class="legend">{% for key, label, n, share in parts %}<span class="k-{{ key }}">{{ label }} {{ n }}</span>{% endfor %}</p>
 {%- endmacro %}
 {% macro threat(level) -%}
-{% set t = [[level, 1] | max, 5] | min %}<span class="chip t{{ t }}">{{ t }} of 5 · {{ t | threat_label }}</span>
+{% set t = [[level, 1] | max, 5] | min %}<span class="chip t{{ t }}">{{ t }} of 5 ({{ t | threat_label }})</span>
 {%- endmacro %}
 <body>
 <a class="skip" href="#summary">Skip to the summary</a>
 <div class="wrap">
 <header class="top">
-  <p class="kicker">Competitor report · {{ date }}</p>
+  <p class="kicker">Competitor report, {{ date }}</p>
   <h1>{{ target }}</h1>
   {% if compared %}<p class="compared">Compared with {{ compared }}</p>{% endif %}
   {% if es.headline %}<p class="headline">{{ es.headline }}</p>{% endif %}
-  <p class="meta">{% if r.brief.industry %}{{ r.brief.industry }} · {% endif %}{{ r.brief.depth.value | title }} research · run {{ r.run_id }}</p>
+  <p class="meta">{% if r.brief.industry %}{{ r.brief.industry }}, {% endif %}{{ r.brief.depth.value | title }} research, run {{ r.run_id }}</p>
   <div class="kpis">
     {% for m in hero_metrics %}<div class="kpi"><b>{{ m.display }}</b><span>{{ m.label }}</span></div>{% endfor %}
   </div>
@@ -381,17 +381,17 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
   {% if scorecard %}
   <h3>Company scorecard</h3>
   <div class="table-wrap"><table class="scorecard">
-    <thead><tr><th>Company</th><th>Threat</th><th>Capabilities</th><th>Cheapest plan</th><th>Evidence</th><th>Complaints · praise</th><th>Latest move</th></tr></thead>
+    <thead><tr><th>Company</th><th>Threat</th><th>Capabilities</th><th>Cheapest plan</th><th>Evidence</th><th>Complaints / praise</th><th>Latest move</th></tr></thead>
     <tbody>
     {% for row in scorecard %}
       <tr>
         <td class="co"><span class="dot" style="--c: {{ row.color }}"></span><a href="#{{ row.anchor }}"><strong>{{ row.name }}</strong></a>{% if row.is_target %}<span class="sub">The client</span>{% endif %}</td>
-        <td>{% if row.threat %}{{ pips(row.threat) }}<span class="bar-label">{{ row.threat }} of 5</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td class="metric">{% if row.caps is not none %}<div class="bar"><span class="part" style="width: {{ row.caps_pct + row.caps_partial_pct }}%"></span><span style="width: {{ row.caps_pct }}%"></span></div><span class="bar-label">{{ row.caps }} of {{ row.caps_total }}{% if row.caps_partial %}, {{ row.caps_partial }} partly{% endif %}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td class="nowrap">{{ row.cheapest or "—" }}</td>
+        <td>{% if row.threat %}{{ pips(row.threat) }}<span class="bar-label">{{ row.threat }} of 5</span>{% else %}<span class="muted">-</span>{% endif %}</td>
+        <td class="metric">{% if row.caps is not none %}<div class="bar"><span class="part" style="width: {{ row.caps_pct + row.caps_partial_pct }}%"></span><span style="width: {{ row.caps_pct }}%"></span></div><span class="bar-label">{{ row.caps }} of {{ row.caps_total }}{% if row.caps_partial %}, {{ row.caps_partial }} partly{% endif %}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
+        <td class="nowrap">{{ row.cheapest or "-" }}</td>
         <td class="metric"><div class="bar"><span style="width: {{ row.facts_pct }}%"></span></div><span class="bar-label">{{ row.facts }} verified facts</span></td>
-        <td>{% if row.praise or row.complaints %}{{ duo(row) }}<span class="bar-label">{{ row.complaints }} · {{ row.praise }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td class="nowrap">{{ row.latest or "—" }}</td>
+        <td>{% if row.praise or row.complaints %}{{ duo(row) }}<span class="bar-label">{{ row.complaints }} / {{ row.praise }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
+        <td class="nowrap">{{ row.latest or "-" }}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -410,8 +410,8 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
     {% for c in landscape %}
       <tr>
         <td class="co"><span class="dot" style="--c: {{ c.color }}"></span>{% if c.has_profile %}<a href="#{{ c.anchor }}"><strong>{{ display(c.name) }}</strong></a>{% else %}<strong>{{ display(c.name) }}</strong>{% endif %}{% if c.website %}<span class="sub">{{ ext_link(c.website, c.website | domain) }}</span>{% endif %}</td>
-        <td>{{ c.category or "—" }}</td>
-        <td>{{ c.summary or "—" }}</td>
+        <td>{{ c.category or "-" }}</td>
+        <td>{{ c.summary or "-" }}</td>
         <td class="nowrap">{% if c.threat %}{{ threat(c.threat) }}{% else %}<span class="muted">Not rated</span>{% endif %}</td>
       </tr>
     {% endfor %}
@@ -434,7 +434,7 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
     {% endfor %}
     </tbody>
   </table></div>
-  <p class="muted small">“Unknown” means the research found no public evidence either way. It never counts as a “no”.</p>
+  <p class="muted small">"Unknown" means the research found no public evidence either way. It never counts as a "no".</p>
 </section>
 {% endif %}
 
@@ -503,10 +503,10 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
       {% set sc = scorecard | selectattr("anchor", "equalto", item.anchor) | first %}
       {% if sc %}
       <div class="strip">
-        <div><h4>Threat</h4>{% if sc.threat %}<span class="big">{{ sc.threat }} of 5</span>{{ pips(sc.threat) }}{% else %}<span class="big muted">—</span>{% endif %}</div>
-        <div><h4>Capabilities</h4>{% if sc.caps is not none %}<span class="big">{{ sc.caps }} of {{ sc.caps_total }}</span><div class="bar"><span class="part" style="width: {{ sc.caps_pct + sc.caps_partial_pct }}%"></span><span style="width: {{ sc.caps_pct }}%"></span></div>{% else %}<span class="big muted">—</span>{% endif %}</div>
+        <div><h4>Threat</h4>{% if sc.threat %}<span class="big">{{ sc.threat }} of 5</span>{{ pips(sc.threat) }}{% else %}<span class="big muted">-</span>{% endif %}</div>
+        <div><h4>Capabilities</h4>{% if sc.caps is not none %}<span class="big">{{ sc.caps }} of {{ sc.caps_total }}</span><div class="bar"><span class="part" style="width: {{ sc.caps_pct + sc.caps_partial_pct }}%"></span><span style="width: {{ sc.caps_pct }}%"></span></div>{% else %}<span class="big muted">-</span>{% endif %}</div>
         <div><h4>Evidence</h4><span class="big">{{ sc.facts }} facts</span><div class="bar"><span style="width: {{ sc.facts_pct }}%"></span></div></div>
-        <div><h4>Complaints · praise</h4>{% if sc.praise or sc.complaints %}<span class="big">{{ sc.complaints }} · {{ sc.praise }}</span>{{ duo(sc) }}{% else %}<span class="big muted">—</span>{% endif %}</div>
+        <div><h4>Complaints / praise</h4>{% if sc.praise or sc.complaints %}<span class="big">{{ sc.complaints }} / {{ sc.praise }}</span>{{ duo(sc) }}{% else %}<span class="big muted">-</span>{% endif %}</div>
       </div>
       {% if sc.topics %}
       <h4 style="margin-top:20px">What the evidence covers</h4>
@@ -605,8 +605,8 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
       {% for a in lane.actions %}
       <div class="action"><span class="no">{{ a.n }}</span><strong>{{ a.r.title }}</strong>{{ cite(a.r.fact_ids) }}
         {% if a.r.first_step %}<span class="sub">First step: {{ a.r.first_step }}</span>{% elif a.r.rationale %}<span class="sub">{{ a.r.rationale }}</span>{% endif %}
-        {% if a.r.owner or a.r.metric %}<span class="sub">{% if a.r.owner %}{{ a.r.owner }}{% endif %}{% if a.r.owner and a.r.metric %} · {% endif %}{% if a.r.metric %}measured by {{ a.r.metric }}{% endif %}</span>{% endif %}
-        <div class="meta-line"><span class="chip prio-{{ a.r.priority }}">{{ a.r.priority | title }} priority</span><span>impact {{ [[a.r.impact, 1] | max, 5] | min }} · effort {{ [[a.r.effort, 1] | max, 5] | min }}</span>{% if a.kind == "Quick win" %}<span class="chip fm-yes">Quick win</span>{% endif %}</div>
+        {% if a.r.owner or a.r.metric %}<span class="sub">{% if a.r.owner %}{{ a.r.owner }}{% endif %}{% if a.r.owner and a.r.metric %}, {% endif %}{% if a.r.metric %}measured by {{ a.r.metric }}{% endif %}</span>{% endif %}
+        <div class="meta-line"><span class="chip prio-{{ a.r.priority }}">{{ a.r.priority | title }} priority</span><span>impact {{ [[a.r.impact, 1] | max, 5] | min }}, effort {{ [[a.r.effort, 1] | max, 5] | min }}</span>{% if a.kind == "Quick win" %}<span class="chip fm-yes">Quick win</span>{% endif %}</div>
       </div>
       {% else %}
       <p class="empty">Nothing planned here.</p>
@@ -629,7 +629,7 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
     <thead><tr><th>Risk</th><th>Type</th><th>Score</th><th>What to do</th></tr></thead>
     <tbody>
     {% for item in risks %}
-      <tr><td><strong>{{ item.label }} · {{ item.r.title }}</strong>{{ cite(item.r.fact_ids) }}{% if item.r.description %}<span class="sub">{{ item.r.description }}</span>{% endif %}</td><td class="nowrap">{{ item.category }}</td><td class="nowrap"><span class="chip band-{{ item.band }}">{{ item.score }} · {{ item.band }}</span><span class="sub">likelihood {{ item.likelihood }} × impact {{ item.impact }}</span></td><td>{{ item.r.mitigation }}{% if item.r.owner %}<span class="sub">Owner: {{ item.r.owner }}</span>{% endif %}</td></tr>
+      <tr><td><strong>{{ item.label }}: {{ item.r.title }}</strong>{{ cite(item.r.fact_ids) }}{% if item.r.description %}<span class="sub">{{ item.r.description }}</span>{% endif %}</td><td class="nowrap">{{ item.category }}</td><td class="nowrap"><span class="chip band-{{ item.band }}">{{ item.score }} ({{ item.band }})</span><span class="sub">likelihood {{ item.likelihood }} × impact {{ item.impact }}</span></td><td>{{ item.r.mitigation }}{% if item.r.owner %}<span class="sub">Owner: {{ item.r.owner }}</span>{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
@@ -652,7 +652,7 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
   {% if b.objections %}
   <div class="table-wrap"><table>
     <thead><tr><th>When they say</th><th>Answer</th></tr></thead>
-    <tbody>{% for o in b.objections %}<tr><td>“{{ o.objection }}”</td><td>{{ o.response }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for o in b.objections %}<tr><td>"{{ o.objection }}"</td><td>{{ o.response }}</td></tr>{% endfor %}</tbody>
   </table></div>
   {% endif %}
   {% if b.pricing_talk_track %}<p class="measure"><strong>On price:</strong> {{ b.pricing_talk_track }}</p>{% endif %}
@@ -729,7 +729,7 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
     <thead><tr><th>Source</th><th>Type</th><th>Published</th><th class="num">Reliability</th><th class="num">Facts</th></tr></thead>
     <tbody>
     {% for item in sources %}
-      <tr><td>{{ ext_link(item.url, item.s.title or item.s.domain or item.s.url) }}<span class="sub">{{ item.s.domain }}</span></td><td>{{ item.s.source_type | title }}</td><td class="nowrap">{{ item.s.published or "—" }}</td><td class="num">{{ item.s.reliability | pct }}</td><td class="num">{{ item.s.fact_count }}</td></tr>
+      <tr><td>{{ ext_link(item.url, item.s.title or item.s.domain or item.s.url) }}<span class="sub">{{ item.s.domain }}</span></td><td>{{ item.s.source_type | title }}</td><td class="nowrap">{{ item.s.published or "-" }}</td><td class="num">{{ item.s.reliability | pct }}</td><td class="num">{{ item.s.fact_count }}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
@@ -750,9 +750,9 @@ footer.page { padding: 28px 0 48px; border-top: 1px solid var(--rule); font-size
       {% set f = row.f %}
       <tr class="fact-row" id="{{ row.anchor }}">
         <td class="nowrap"><span class="fact-no">{{ loop.index }}</span><span class="fact-id">{{ f.id | anchor }}</span></td>
-        <td>{{ f.claim }}{% if f.value %} <span class="small muted">({{ f.value }})</span>{% endif %}<span class="sub">{{ display(f.competitor) }} · {{ row.dimension }}</span>{% if f.quote %}<blockquote>“{{ f.quote }}”</blockquote>{% endif %}{% if f.verification_notes %}<span class="sub">{{ f.verification_notes }}</span>{% endif %}</td>
-        <td class="nowrap"><span class="chip st-{{ f.status }}">{{ row.status.glyph }} {{ row.status.label }}</span><span class="sub">{{ f.confidence | pct }} confidence{% if f.grounded %} · quote found{% endif %}</span>{% if f.corroborations %}<span class="sub">{{ f.corroborations }} other site{{ "s" if f.corroborations != 1 else "" }} agree</span>{% endif %}</td>
-        <td class="src-links small">{% for url, label in row.links %}{{ ext_link(url, label, title=url) }}{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td>{{ f.claim }}{% if f.value %} <span class="small muted">({{ f.value }})</span>{% endif %}<span class="sub">{{ display(f.competitor) }}, {{ row.dimension }}</span>{% if f.quote %}<blockquote>"{{ f.quote }}"</blockquote>{% endif %}{% if f.verification_notes %}<span class="sub">{{ f.verification_notes }}</span>{% endif %}</td>
+        <td class="nowrap"><span class="chip st-{{ f.status }}">{{ row.status.glyph }} {{ row.status.label }}</span><span class="sub">{{ f.confidence | pct }} confidence{% if f.grounded %}, quote found{% endif %}</span>{% if f.corroborations %}<span class="sub">{{ f.corroborations }} other site{{ "s" if f.corroborations != 1 else "" }} agree</span>{% endif %}</td>
+        <td class="src-links small">{% for url, label in row.links %}{{ ext_link(url, label, title=url) }}{% else %}<span class="muted">-</span>{% endfor %}</td>
       </tr>
     {% endfor %}
     </tbody>

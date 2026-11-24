@@ -168,9 +168,9 @@ class Researcher(Agent):
             if budget_chars - len(body) < 0:
                 break
             budget_chars -= len(body)
-            meta = " · ".join(x for x in (e.domain, e.source_type, e.published, truncate(e.title or "", 70)) if x)
+            meta = " | ".join(x for x in (e.domain, e.source_type, e.published, truncate(e.title or "", 70)) if x)
             if e.risk >= FLAG_AT:
-                meta += " · CAUTION: contained instruction-like text (removed)"
+                meta += " | CAUTION: contained instruction-like text (removed)"
             blocks.append(fenced("EVIDENCE", e.id, meta, body, nonce))
         evidence = evidence[: len(blocks)]
         qlines = "\n".join(f"[{q.id}] ({q.dimension}) {q.question}" for q in questions)
@@ -412,7 +412,7 @@ class ResearchDepartment:
             ctx.evidence.setdefault(e.id, e)
         ok_pages = sum(1 for p in pages if p.text and len(p.text) >= 200)
         ctx.events.emit("Research", "Research Lead", "info",
-                        f"{subject.name}: fetched {ok_pages}/{len(urls)} pages → {len(new_ev)} evidence chunks")
+                        f"{subject.name}: fetched {ok_pages}/{len(urls)} pages, {len(new_ev)} evidence chunks")
         pool = [e for e in ctx.evidence.values() if e.competitor == subject.name]
         if not pool:
             return []

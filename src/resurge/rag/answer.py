@@ -66,7 +66,7 @@ def render_block(n: int, c: dict, nonce: str) -> str:
         meta.append(f"source {_domain(c.get('url'))}")
     if c.get("flagged"):
         meta.append("WARNING: contained instruction-like text (neutralised) - less reliable")
-    return fenced("SOURCE", str(n), " · ".join(meta), truncate(c.get("text") or "", _BLOCK_CHARS), nonce)
+    return fenced("SOURCE", str(n), " | ".join(meta), truncate(c.get("text") or "", _BLOCK_CHARS), nonce)
 
 
 # Distinctive phrases of the system prompt: an answer that repeats them is leaking the prompt.
@@ -153,7 +153,7 @@ def _cap_words(text: str, limit: int = MAX_WORDS) -> str:
         return text
     cut = " ".join(words[:limit])
     end = max(cut.rfind(". "), cut.rfind(".\n"), cut.rfind("\n- "))
-    return (cut[: end + 1] if end > len(cut) * 0.6 else cut).rstrip() + " …"
+    return (cut[: end + 1] if end > len(cut) * 0.6 else cut).rstrip() + " ..."
 
 
 _RESTATES_FACT = {"fact", "pricing", "feature"}  # pricing tiers / matrix cells restate one verified fact
@@ -188,7 +188,7 @@ def _attach_markers(text: str, cited: list[tuple[int, dict]]) -> str:
 
     units: list[list[str]] = []  # per line: sentences (bullets stay whole)
     for line in text.split("\n"):
-        is_bullet = line.lstrip().startswith(("-", "*", "•")) or re.match(r"\s*\d+[.)]\s", line)
+        is_bullet = line.lstrip().startswith(("-", "*", "\u2022")) or re.match(r"\s*\d+[.)]\s", line)
         units.append([line] if is_bullet else re.split(r"(?<=[.!?])\s+", line))
     block_toks = {n: toks(f"{c.get('claim', '')} {c.get('text', '')}") for n, c in cited}
     shared = set.intersection(*block_toks.values()) if len(block_toks) > 1 else set()

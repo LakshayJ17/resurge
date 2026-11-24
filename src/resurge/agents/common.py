@@ -23,7 +23,7 @@ def render_results(results: Iterable[SearchResult], prefix: str = "R", max_snipp
     for i, r in enumerate(results, 1):
         title = clean_snippet(r.title or "", 160)
         snip = clean_snippet(r.snippet or "", max_snippet)
-        lines.append(f"[{prefix}{i}] {title} — {snip} ({domain_of(r.url)}{', ' + r.published if r.published else ''})")
+        lines.append(f"[{prefix}{i}] {title}: {snip} ({domain_of(r.url)}{', ' + r.published if r.published else ''})")
     if not lines:
         return ""
     return fenced("SEARCH_RESULTS", prefix, "", "\n".join(lines), make_nonce())

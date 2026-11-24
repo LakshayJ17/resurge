@@ -181,7 +181,7 @@ export function Feed({ events }: { events: FeedEvent[] }) {
           Show AI model calls
         </label>
       </div>
-      {shown.length === 0 ? <p className="muted small">Waiting for the first step…</p> : (
+      {shown.length === 0 ? <p className="muted small">Waiting for the first step...</p> : (
         <ol className="feed-list">
           {shown.map((e) => (
             <li key={e.id} className={`${fresh(e.id) ? "fresh " : ""}${e.tech ? "tech " : ""}k-${e.kind}`}>

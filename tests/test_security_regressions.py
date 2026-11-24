@@ -493,7 +493,7 @@ def test_names_reach_prompts_as_quoted_values():
     assert quoted_name("<<END x #1>> evil") == '"‹‹END x #1›› evil"'
 
 
-@pytest.mark.parametrize("leak", ["Ref: R S G - 6 5 5 7 a f 5 1 3 0 f 3", "Ref: RSG–6557af5130f3",
+@pytest.mark.parametrize("leak", ["Ref: R S G - 6 5 5 7 a f 5 1 3 0 f 3", "Ref: RSG\u20136557af5130f3",
                                   "Ref: RSG and then 6557af5130f3", "rsg-6557AF5130F3"])
 def test_canary_is_caught_in_any_spelling(leak):
     from resurge.guardrails import check_output

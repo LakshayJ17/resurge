@@ -77,6 +77,6 @@ class ExaBackend(SearchBackend):
             if not isinstance(r, dict):
                 continue
             highlights = [h for h in r.get("highlights") or [] if isinstance(h, str) and h.strip()]
-            snippet = " … ".join(highlights) or r.get("summary") or clean_text(r.get("text"), 600)
+            snippet = " ... ".join(highlights) or r.get("summary") or clean_text(r.get("text"), 600)
             out.append(result(r.get("url") or r.get("id"), r.get("title"), snippet, r.get("publishedDate")))
         return out

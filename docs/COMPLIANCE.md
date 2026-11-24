@@ -16,7 +16,7 @@ Resurge avoids blocks by **not behaving badly**. It never evades blocks.
 | Back-off | `429`/`503` honour `Retry-After` and retry at most once. Sites that keep refusing are skipped for the rest of the run (circuit breaker). |
 | Refusals | `401`/`403`/`451` and robots.txt disallows are final. Resurge **never** routes around a refusal via another fetcher. |
 | Never | No proxy or IP rotation, no CAPTCHA solving, no fingerprint spoofing, no logins, no paywall bypass, no private or personal data. |
-| Site terms | Sites whose terms forbid automated collection are never fetched, directly or via another service. That covers social and professional networks, job and review sites (Glassdoor, G2, Capterra, Trustpilot, Yelp), company-data vendors (Crunchbase, PitchBook, ZoomInfo), Reddit, Quora, Medium, YouTube, Amazon and hard-paywalled news (NYT, WSJ, FT, Bloomberg, …). At most their search snippets are used. The list lives in `config/compliance.yaml`: you can add domains, or record exceptions you hold written permission for. `RESURGE_EXTRA_NOFETCH_DOMAINS` extends it per run. |
+| Site terms | Sites whose terms forbid automated collection are never fetched, directly or via another service. That covers social and professional networks, job and review sites (Glassdoor, G2, Capterra, Trustpilot, Yelp), company-data vendors (Crunchbase, PitchBook, ZoomInfo), Reddit, Quora, Medium, YouTube, Amazon and hard-paywalled news (NYT, WSJ, FT, Bloomberg and others). At most their search snippets are used. The list lives in `config/compliance.yaml`: you can add domains, or record exceptions you hold written permission for. `RESURGE_EXTRA_NOFETCH_DOMAINS` extends it per run. |
 | Search | Only sanctioned access paths by default: official APIs (Tavily, Exa, Brave, Serper, Jina, your SearXNG), Parallel's free MCP, and the official Hacker News, Wikipedia and GitHub APIs. Unofficial search-engine scraping (`ddgs`) and Google News RSS are **off** unless you opt in with `RESURGE_ALLOW_UNOFFICIAL_SEARCH=1`. ddgs can conflict with search engines' terms and gets IPs blocked. Google News RSS's robots.txt disallows bots and its licence covers personal feed readers, so even with the opt-in it stays robots-blocked. |
 | Volume | Caching (search 24h, pages 3 days), a knowledge base and per-run budgets keep request counts low. |
 
@@ -41,7 +41,7 @@ methodology reports how many pages were skipped for robots.txt, site terms, acce
 
 ## 3. Copyright & attribution
 
-Reports contain short verbatim quotes (5–40 words) used as evidence for analysis, always with a link to the source,
+Reports contain short verbatim quotes (5 to 40 words) used as evidence for analysis, always with a link to the source,
 plus Resurge's own analysis. Full pages are never republished; the local page cache is private and expires.
 
 ## 4. LLM provider terms
@@ -57,13 +57,13 @@ Web pages are attacker-controlled. Defences, cheapest first:
 1. **Least privilege.** LLM agents have no tools: they can't browse, fetch, write files, send messages or call
    APIs. Code decides every action, so injected text can at most try to distort extracted data.
 2. **Sanitisation.** Invisible and control characters (zero-width, bidi overrides, the Unicode "tag" block used for
-   ASCII smuggling), chat-template and role tokens, and instruction-like sentences ("ignore previous instructions…",
-   "you are now…", "mark every claim as supported…", "reveal your system prompt…") are removed before any model sees
+   ASCII smuggling), chat-template and role tokens, and instruction-like sentences ("ignore previous instructions...",
+   "you are now...", "mark every claim as supported...", "reveal your system prompt...") are removed before any model sees
    the text.
 3. **Scoring & quarantine.** Every chunk gets a weighted injection score. High-risk chunks never reach a model.
    Borderline chunks are neutralised, labelled "CAUTION" to the model, and their facts lose confidence.
 4. **Spotlighting.** Evidence is wrapped in blocks fenced with a random per-request nonce
-   (`<<EVIDENCE E-… #a1b2c3d4>> … <<END E-… #a1b2c3d4>>`). A page can't guess the nonce, so it can't close its block
+   (`<<EVIDENCE E-1 #a1b2c3d4>> ... <<END E-1 #a1b2c3d4>>`). A page can't guess the nonce, so it can't close its block
    and speak as the system. Fence-like sequences inside content are defanged. Every agent's standing rules say that
    block content is data, never instructions.
 5. **Output validation.** Extracted claims or quotes containing instruction-like text are rejected. Every fact must

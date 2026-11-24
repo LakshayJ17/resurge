@@ -95,7 +95,7 @@ def fact_line(f, max_claim: int = 220) -> str:
     """Compact fact rendering for analyst prompts (token-efficient)."""
     val = f" | value: {f.value}" if f.value and f.value.lower() not in f.claim.lower() else ""
     date = f" | as of {f.as_of}" if f.as_of else ""
-    claim = f.claim if len(f.claim) <= max_claim else f.claim[: max_claim - 1] + "…"
+    claim = f.claim if len(f.claim) <= max_claim else f.claim[: max_claim - 3] + "..."
     return f"[{f.id}] ({f.dimension}, conf {f.confidence:.2f}) {claim}{val}{date}"
 
 

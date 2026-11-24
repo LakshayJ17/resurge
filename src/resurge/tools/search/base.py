@@ -74,11 +74,11 @@ def clean_text(value: Any, limit: int | None = None) -> str:
     if value is None:
         return ""
     if isinstance(value, (list, tuple)):
-        value = " … ".join(t for t in (clean_text(v) for v in value) if t)
+        value = " ... ".join(t for t in (clean_text(v) for v in value) if t)
     text = _WS_RE.sub(" ", html.unescape(_TAG_RE.sub(" ", str(value)))).strip()
     if limit and len(text) > limit:
-        cut = text[:limit]
-        text = (cut.rsplit(" ", 1)[0] if " " in cut[limit // 2:] else cut).rstrip(" ,;:-") + "…"
+        cut = text[: max(0, limit - 3)]
+        text = (cut.rsplit(" ", 1)[0] if " " in cut[limit // 2:] else cut).rstrip(" ,;:-") + "..."
     return text
 
 

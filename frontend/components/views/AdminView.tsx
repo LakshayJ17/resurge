@@ -42,7 +42,7 @@ function Admin() {
     }
   }
 
-  if (!data) return <div className="wrap page"><Problem message={error} />{!error && <p className="muted">Loading…</p>}</div>;
+  if (!data) return <div className="wrap page"><Problem message={error} />{!error && <p className="muted">Loading...</p>}</div>;
   const { stats } = data;
   return (
     <div className="wrap page">

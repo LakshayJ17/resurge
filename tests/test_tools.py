@@ -249,7 +249,7 @@ def test_region_timelimit_and_query_helpers() -> None:
     assert augment_query("Notion  pricing", "web") == "Notion pricing"
     assert strip_site_operators("notion review site:reddit.com -inurl:ads") == "notion review"
     assert clean_text("<b>Notion</b> &amp; <i>Coda</i>\n  compared") == "Notion & Coda compared"
-    assert clean_text("x" * 50 + " tail words here", 30).endswith("…")
+    assert clean_text("x" * 50 + " tail words here", 30).endswith("...")
 
 
 def test_retry_after_and_throttle() -> None:
@@ -595,7 +595,7 @@ SEARXNG_SAMPLE = {"query": "searxng", "results": [
      "engine": "google", "engines": ["google"], "score": 0.5, "category": "general", "publishedDate": "2025-01-10T00:00:00"},
 ], "answers": [], "suggestions": [], "unresponsive_engines": [["brave", "timeout"]]}
 HN_SAMPLE = {"hits": [
-    {"objectID": "43378239", "title": "Docs – Open source alternative to Notion or Outline",
+    {"objectID": "43378239", "title": "Docs \u2013 Open source alternative to Notion or Outline",
      "url": "https://github.com/suitenumerique/docs", "author": "maelito", "points": 1952, "num_comments": 454,
      "created_at": "2025-03-16T11:38:52Z", "story_text": None},
     {"objectID": "36846623", "title": "Ask HN: Do you like Notion?", "url": None, "author": "someone", "points": 12,
@@ -694,7 +694,7 @@ def test_parse_hackernews_wikipedia_github() -> None:
     assert wiki[0].snippet.startswith("Productivity web application. Notion is a productivity")
     assert wiki[1].url == "https://en.wikipedia.org/wiki/Notion_(music_software)" and "searchmatch" not in wiki[1].snippet
     gh = GitHubBackend.parse_repos(GITHUB_SAMPLE)
-    assert gh[0].title == "mattermost-community/focalboard" and "★ 26,556" in gh[0].snippet and "TypeScript" in gh[0].snippet
+    assert gh[0].title == "mattermost-community/focalboard" and "26,556 stars" in gh[0].snippet and "TypeScript" in gh[0].snippet
     assert "NOASSERTION" not in gh[0].snippet and "Homepage: https://www.focalboard.com" in gh[0].snippet
     assert "archived" in gh[1].snippet and "AGPL-3.0" in gh[1].snippet and gh[1].published == "2026-11-01T00:00:00Z"
 
@@ -712,7 +712,7 @@ def test_parse_ddgs_and_parallel_payloads() -> None:
     ]}
     items = ToolOutput(structured=structured, texts=[json.dumps(structured)]).items()
     results = ParallelMCPBackend.parse_items(items)
-    assert results[0].snippet == "Superhuman Docs for formulas … Mem for AI notes" and len(results) == 2
+    assert results[0].snippet == "Superhuman Docs for formulas ... Mem for AI notes" and len(results) == 2
     assert len(ParallelMCPBackend.parse_items(items, timelimit="y")) == 1  # dated outside the window
     page = ParallelMCPBackend.page_from_payload("https://x.com", {"results": [
         {"url": "https://x.com", "title": "X", "publish_date": "2026-01-02", "excerpts": ["e"], "full_content": "Full text"}],
@@ -835,7 +835,7 @@ def test_extract_search_items_json_and_text() -> None:
     assert fastmcp_style.items() == [{"url": "https://a.com", "title": "A", "snippet": "d", "published": None}]
     nested = {"web": {"results": [{"url": "https://b.com", "title": "B", "extra_snippets": ["x", "y"], "age": "2 days ago"}]},
               "meta": {"url": "https://not-a-result.com"}}
-    assert extract_search_items(nested)[0] == {"url": "https://b.com", "title": "B", "snippet": "x … y", "published": "2 days ago"}
+    assert extract_search_items(nested)[0] == {"url": "https://b.com", "title": "B", "snippet": "x ... y", "published": "2 days ago"}
     blocks = ("Title: Notion Pricing\nURL: https://www.notion.com/pricing\nDescription: Plans for everyone\n\n"
               "Title: Coda vs Notion\nURL: [link](https://coda.io/compare)\nDescription: A comparison\n")
     items = parse_text_results(blocks)

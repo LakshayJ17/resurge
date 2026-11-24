@@ -77,7 +77,7 @@ export function AuthView({ mode }: { mode: "signup" | "login" }) {
             )}
             {signup && config?.turnstile_site_key && <Turnstile siteKey={config.turnstile_site_key} onToken={onToken} />}
             <button className="btn" type="submit" disabled={busy}>
-              {busy ? "Please wait…" : signup ? "Create account" : "Log in"}
+              {busy ? "Please wait..." : signup ? "Create account" : "Log in"}
             </button>
           </form>
         )}

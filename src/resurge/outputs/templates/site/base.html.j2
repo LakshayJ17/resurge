@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="{{ csp }}">
 <meta name="referrer" content="no-referrer">
-<title>{% block title %}{% endblock %} · {{ target }} competitor report</title>
+<title>{% block title %}{% endblock %} | {{ target }} competitor report</title>
 <style>{% include "style.css" %}</style>
 </head>
 <body>
@@ -51,7 +51,7 @@
         {% set url = safe_url(f.source_urls[0]) if f.source_urls else None %}
         <li id="cite-{{ n }}" value="{{ n }}">
           {{ f.claim | clip(180) }}
-          {% if f.quote %}<span class="fn-quote">“{{ f.quote | clip(200) }}”</span>{% endif %}
+          {% if f.quote %}<span class="fn-quote">"{{ f.quote | clip(200) }}"</span>{% endif %}
           <span class="fn-meta">
             {% if url %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer">{{ url | domain }}</a>{% endif %}{% if f.as_of %}, {{ f.as_of }}{% endif %}; confidence {{ f.confidence | pct }};
             <a href="{{ root }}sources.html#f-{{ f.id | lower }}">evidence</a>

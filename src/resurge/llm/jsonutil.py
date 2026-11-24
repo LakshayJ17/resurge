@@ -1,4 +1,4 @@
-"""Robust structured output for models of very different quality.
+"""Structured output that works across models of very different quality.
 
 * ``schema_hint`` renders a compact, TypeScript-like shape from a Pydantic model
   (far fewer tokens than a full JSON Schema - matters under free-tier TPM caps).

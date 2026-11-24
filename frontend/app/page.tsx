@@ -44,7 +44,7 @@ export default function Landing() {
             check every fact against its source and give you a report you can question.
           </p>
           <HeroActions />
-          <p className="meta">Free to use · a quick analysis takes about 10–20 minutes</p>
+          <p className="meta">Free to use. A quick analysis takes about 10 to 20 minutes.</p>
         </div>
         <figure className="preview">
           <img src="/report-preview.png" width={1280} height={1000}

@@ -136,5 +136,5 @@
 </section>
 {% endif %}
 
-<p class="note">For a specific question, such as {{ ("“" ~ suggestions[0] ~ "”") if suggestions else "pricing for a given team size" }}, use <a href="ask.html">Ask the research</a>. Answers cite the same sources as this report.</p>
+<p class="note">For a specific question, such as {{ ('"' ~ suggestions[0] ~ '"') if suggestions else "pricing for a given team size" }}, use <a href="ask.html">Ask the research</a>. Answers cite the same sources as this report.</p>
 {% endblock %}

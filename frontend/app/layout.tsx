@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Resurge: competitor research you can check", template: "%s · Resurge" },
+  title: { default: "Resurge: competitor research you can check", template: "%s | Resurge" },
   description: "Type a company or its website. AI agents research its competitors from public sources, check every "
     + "fact against its source and write a report you can question.",
   referrer: "same-origin",

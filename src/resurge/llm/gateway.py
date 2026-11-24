@@ -311,7 +311,7 @@ class LLMGateway:
                 if use_cache and self.settings.use_cache and not json_mode:
                     self.storage.kv_set("llm", cache_key, {"text": text, "model_id": m.id, "provider": m.provider,
                                                            "family": m.family}, LLM_CACHE_TTL)
-                self._emit("llm", f"{agent or role} ← {m.id} ({tin}+{tout} tok, {latency} ms)",
+                self._emit("llm", f"{agent or role} used {m.id} ({tin}+{tout} tok, {latency} ms)",
                            role=role, model=m.id, tokens_in=tin, tokens_out=tout, latency_ms=latency)
                 return LLMResponse(text=text, model_id=m.id, provider=m.provider, family=m.family, tokens_in=tin,
                                    tokens_out=tout, latency_ms=latency, attempts=attempts, reasoning=reasoning)

@@ -54,7 +54,7 @@ def screen_brief_inputs(company: str, competitors: str, questions: str) -> tuple
         raise InputRejected("List at most 6 competitors.")
     for c in comps:
         if len(c) > 60 or len(c.split()) > 6 or _URLISH.search(c) or _suspicious(c):
-            raise InputRejected(f"“{c[:40]}” doesn't look like a company name. List names only, separated by commas.",
+            raise InputRejected(f"\"{c[:40]}\" doesn't look like a company name. List names only, separated by commas.",
                                 suspicious=_suspicious(c))
     qs = [strip_invisible(q).strip() for q in (questions or "").splitlines() if q.strip()]
     if len(qs) > 3:

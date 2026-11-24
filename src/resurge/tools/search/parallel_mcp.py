@@ -56,7 +56,7 @@ _KIND_VARIANT = {"news": "news", "community": "reddit", "code": "github"}
 
 def _keywords(query: str, limit: int = 160) -> str:
     """Parallel wants concise keyword queries without quoted phrases."""
-    return " ".join(query.replace('"', " ").replace("“", " ").replace("”", " ").split())[:limit]
+    return " ".join(query.replace('"', " ").replace("\u201c", " ").replace("\u201d", " ").split())[:limit]
 
 
 class ParallelMCPBackend(SearchBackend):

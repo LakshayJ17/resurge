@@ -18,7 +18,7 @@ export function RequireUser({ children }: { children: (user: User, session: Sess
   }, [session, router]);
 
   if (error && !session) return <p className="problem" role="alert"><strong>Problem:</strong> {error}</p>;
-  if (!session?.user) return <p className="muted">Loading…</p>;
+  if (!session?.user) return <p className="muted">Loading...</p>;
   return <>{children(session.user, session)}</>;
 }
 

@@ -157,7 +157,7 @@ def render_hn_thread(item: dict[str, Any], max_chars: int = 60_000) -> str:
         meta.append(f"by {item['author']}")
     if date := parse_date(item.get("created_at")):
         meta.append(date[:10])
-    lines.append(" · ".join(meta))
+    lines.append(", ".join(meta))
     if item.get("url"):
         lines.append(f"Link: {item['url']}")
     if body := clean_text(item.get("text")):

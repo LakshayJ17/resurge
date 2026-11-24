@@ -299,8 +299,8 @@ class PositionPoint(BaseModel):
 
 
 class PositioningMap(BaseModel):
-    x_axis: str = "Price (low → high)"
-    y_axis: str = "Breadth of offering (narrow → broad)"
+    x_axis: str = "Price (low to high)"
+    y_axis: str = "Breadth of offering (narrow to broad)"
     x_low: str = "Low"
     x_high: str = "High"
     y_low: str = "Low"

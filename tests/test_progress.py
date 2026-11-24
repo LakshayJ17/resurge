@@ -14,8 +14,8 @@ def ev(i, kind, message, agent="COO", ts=None):
 RUN = [
     ev(1, "start", "Engagement opened: Swiggy (quick)"),
     ev(2, "stage", "▶ Intake"),
-    ev(3, "llm", "Chief of Staff ← groq/openai/gpt-oss-120b (900+200 tok, 800 ms)", "Model Router"),
-    ev(4, "done", "Brief ready: company in Online food delivery · swiggy.com", "Chief of Staff"),
+    ev(3, "llm", "Chief of Staff used groq/openai/gpt-oss-120b (900+200 tok, 800 ms)", "Model Router"),
+    ev(4, "done", "Brief ready: company in Online food delivery (swiggy.com)", "Chief of Staff"),
     ev(5, "stage", "▶ Competitor discovery"),
     ev(6, "start", "Scanning the market: 4 discovery searches", "Market Scout"),
     ev(7, "done", "Competitive set: Zomato, Blinkit, Zepto", "Market Scout"),
@@ -23,9 +23,9 @@ RUN = [
     ev(9, "done", "Plan: 22 questions, 51 queries", "Research Strategist"),
     ev(10, "stage", "▶ Research & verification"),
     ev(11, "info", "Reusing 20 verified facts < 3 days old (saves quota)", "Knowledge Base"),
-    ev(12, "info", "Zomato: fetched 4/6 pages → 30 evidence chunks", "Research Lead"),
+    ev(12, "info", "Zomato: fetched 4/6 pages, 30 evidence chunks", "Research Lead"),
     ev(13, "start", "Reading 3 sources on Zomato (overview, pricing, products_features)", "Product & Pricing Researcher"),
-    ev(14, "info", "Swiggy: fetched 5/6 pages → 41 evidence chunks", "Research Lead"),
+    ev(14, "info", "Swiggy: fetched 5/6 pages, 41 evidence chunks", "Research Lead"),
     ev(15, "info", "Batch verified: 8/9 usable", "Fact Checker"),
 ]
 
@@ -36,7 +36,7 @@ def test_a_running_analysis_is_on_the_right_step_with_real_counts():
     assert states == ["done", "done", "done", "active", "pending", "pending", "pending"]
     assert p["current"] == 3 and p["phases"][3]["step"] == "Searching, reading pages and checking every fact"
     assert p["counts"] == {"pages": 9, "facts": 28, "ai_calls": 1}  # 20 reused + 8 newly verified
-    assert p["phases"][0]["result"] == "Online food delivery · swiggy.com"
+    assert p["phases"][0]["result"] == "Online food delivery (swiggy.com)"
     assert p["phases"][1]["result"] == "Zomato, Blinkit, Zepto"
     assert p["phases"][2]["result"] == "22 research questions"
     assert p["phases"][1]["started"] == 1005 and p["phases"][1]["ended"] == 1008

@@ -45,7 +45,7 @@ th{color:var(--muted);font-weight:600;font-size:12px}.view{display:none}.view.on
 </head>
 <body>
 <header>
-  <h1>⟲ Resurge</h1><span class="tag">AI competitive-intelligence company · free-tier models · multi-model verified</span>
+  <h1>Resurge</h1><span class="tag">AI competitive-intelligence company, free-tier models, multi-model verified</span>
   <nav><button data-v="ops" class="on">Operations</button><button data-v="org">Org chart</button>
   <button data-v="learn">Learning</button><button data-v="prov">Providers</button></nav>
 </header>
@@ -62,15 +62,15 @@ th{color:var(--muted);font-weight:600;font-size:12px}.view{display:none}.view.on
       <div class="checks"><label><input type="checkbox" id="local"> Local only</label><label><input type="checkbox" id="private"> Private mode</label></div>
       <button class="primary" id="go">Open engagement</button>
     </div>
-    <div class="card"><h2>Engagements</h2><div id="runs" class="muted">Loading…</div></div>
+    <div class="card"><h2>Engagements</h2><div id="runs" class="muted">Loading...</div></div>
   </section>
   <section><div class="card"><h2 id="feedTitle">Company activity</h2><div id="feed" class="muted">Select or start an engagement.</div></div></section>
-  <section><div class="card"><h2>Deliverables</h2><div id="detail" class="muted">—</div></div></section>
+  <section><div class="card"><h2>Deliverables</h2><div id="detail" class="muted">-</div></div></section>
 </main>
 
-<main id="org" class="view"><div class="card wide"><h2>Org chart · departments, agents and live model routing</h2><div id="orgT">Loading…</div></div></main>
-<main id="learn" class="view"><div class="card wide"><h2>What the company has learned</h2><div id="learnT">Loading…</div></div></main>
-<main id="prov" class="view"><div class="card wide"><h2>Free LLM providers</h2><div id="provT">Loading…</div></div></main>
+<main id="org" class="view"><div class="card wide"><h2>Org chart: departments, agents and live model routing</h2><div id="orgT">Loading...</div></div></main>
+<main id="learn" class="view"><div class="card wide"><h2>What the company has learned</h2><div id="learnT">Loading...</div></div></main>
+<main id="prov" class="view"><div class="card wide"><h2>Free LLM providers</h2><div id="provT">Loading...</div></div></main>
 
 <script>
 const DEPT={"Executive Office":"#a855f7","Strategy & Planning":"#06b6d4","Research":"#3b82f6","Quality Assurance":"#22c55e",
@@ -84,13 +84,13 @@ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.query
  ({org:loadOrg,learn:loadLearn,prov:loadProv}[b.dataset.v]||(()=>{}))()});
 async function loadRuns(){const rs=await j("/api/runs");$("#runs").innerHTML=rs.length?rs.map(r=>{const st=r.running?"running":r.status;
  return `<div class="run ${r.id===current?"sel":""}" onclick="select('${r.id}')"><b>${esc(r.target)}</b><span class="pill ${st}">${st}</span>
- <span class="pill">Q ${r.quality!=null?Math.round(r.quality):"–"}</span><span class="pill">${r.facts??"–"} facts</span><br><small>${r.id}</small></div>`}).join(""):"No engagements yet."}
-async function select(id){current=id;lastEv=0;$("#feed").innerHTML="";$("#feedTitle").textContent="Company activity · "+id;clearInterval(timer);
+ <span class="pill">Q ${r.quality!=null?Math.round(r.quality):"-"}</span><span class="pill">${r.facts??"-"} facts</span><br><small>${r.id}</small></div>`}).join(""):"No engagements yet."}
+async function select(id){current=id;lastEv=0;$("#feed").innerHTML="";$("#feedTitle").textContent="Company activity: "+id;clearInterval(timer);
  await poll();timer=setInterval(poll,1500);loadRuns()}
 async function poll(){if(!current)return;const evs=await j(`/api/runs/${current}/events?after=${lastEv}`);const f=$("#feed");
  for(const e of evs){lastEv=e.id;if(e.kind==="llm")continue;const t=new Date(e.ts*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
   const d=document.createElement("div");const c=DEPT[e.department]||"#999";
-  if(e.kind==="stage"){d.className="ev stage";d.innerHTML=`<span><span class="dept" style="background:${c}"></span>${esc(e.message)} <span class="muted">· ${esc(e.department)}</span></span>`}
+  if(e.kind==="stage"){d.className="ev stage";d.innerHTML=`<span><span class="dept" style="background:${c}"></span>${esc(e.message)} <span class="muted">(${esc(e.department)})</span></span>`}
   else{d.className="ev "+e.kind;d.innerHTML=`<span class="t">${t}</span><span class="a"><span class="dept" style="background:${c}"></span>${esc(e.agent)}</span>
   <span class="m">${esc(e.message)} ${e.data&&e.data.model?`<span class="md">(${esc(e.data.model)})</span>`:""}</span>`}
   f.appendChild(d);f.scrollTop=f.scrollHeight}
@@ -99,11 +99,11 @@ function renderDetail(d){const r=d.run,s=d.summary;let h=`<span class="pill ${r.
  if(s){const m=s.metrics;h+=`<h3>${esc(s.headline)}</h3><p>${esc(s.summary)}</p><div class="kpis">
  <div class="kpi"><b>${m.quality_score}</b><small>quality /100</small></div><div class="kpi"><b>${m.facts_usable}</b><small>verified facts</small></div>
  <div class="kpi"><b>${Math.round(m.coverage*100)}%</b><small>coverage</small></div><div class="kpi"><b>${m.avg_qa_score}</b><small>QA score /10</small></div>
- <div class="kpi"><b>${m.llm_calls}</b><small>LLM calls (+${m.cache_hits} cached)</small></div><div class="kpi"><b>$0.00</b><small>≈ $${m.estimated_paid_cost_usd.toFixed(2)} paid</small></div></div>
+ <div class="kpi"><b>${m.llm_calls}</b><small>LLM calls (+${m.cache_hits} cached)</small></div><div class="kpi"><b>$0.00</b><small>about $${m.estimated_paid_cost_usd.toFixed(2)} paid</small></div></div>
  <h3>Top risks</h3><table>${s.risks.map(x=>`<tr><td>${x.id}</td><td>${esc(x.title)}</td><td>${x.score}</td></tr>`).join("")}</table>`;
  if(s.changes.length)h+=`<h3>Changes since last run</h3><ul>${s.changes.map(c=>`<li>${esc(c)}</li>`).join("")}</ul>`}
  const rid=encodeURIComponent(r.id);
- if(d.files.includes("report.html")||d.files.includes("site/index.html"))h+=`<div class="files" style="margin:14px 0"><a href="/files/${rid}/${d.files.includes("report.html")?"report.html":"site/index.html"}" target="_blank" rel="noopener"><b>Open report →</b></a>${d.files.includes("site/ask.html")?`<a href="/files/${rid}/site/ask.html" target="_blank" rel="noopener"><b>✦ Ask the research</b></a>`:""}</div>`;
+ if(d.files.includes("report.html")||d.files.includes("site/index.html"))h+=`<div class="files" style="margin:14px 0"><a href="/files/${rid}/${d.files.includes("report.html")?"report.html":"site/index.html"}" target="_blank" rel="noopener"><b>Open report</b></a>${d.files.includes("site/ask.html")?`<a href="/files/${rid}/site/ask.html" target="_blank" rel="noopener"><b>Ask the research</b></a>`:""}</div>`;
  if(d.files.length)h+=`<h3>Files</h3><div class="files">${d.files.filter(f=>!f.startsWith("site/")&&(!f.endsWith(".png")||f.includes("positioning")||f.includes("pricing"))).map(f=>`<a href="/files/${rid}/${f}" target="_blank" rel="noopener">${esc(f)}</a>`).join("")}</div>`;
  $("#detail").innerHTML=h}
 $("#go").onclick=async()=>{const t=$("#target").value.trim();if(!t)return $("#target").focus();$("#go").disabled=true;
@@ -114,17 +114,17 @@ $("#go").onclick=async()=>{const t=$("#target").value.trim();if(!t)return $("#ta
  catch(e){alert(e.message)}finally{$("#go").disabled=false}};
 async function loadOrg(){const rows=await j("/api/org");$("#orgT").innerHTML=`<table><tr><th>Department</th><th>Agent</th><th>Mission</th><th>Routes to (now)</th></tr>${rows.map(r=>
  `<tr><td><span class="dept" style="background:${DEPT[r.department]||"#999"}"></span>${esc(r.department)}</td><td><b>${esc(r.title)}</b></td><td>${esc(r.mission)}</td>
- <td>${r.role?(r.routes.length?r.routes.map(esc).join(" → "):"<span style='color:var(--warn)'>no model available</span>"):"<span class='muted'>deterministic code · 0 tokens</span>"}</td></tr>`).join("")}</table>`}
+ <td>${r.role?(r.routes.length?r.routes.map(esc).join(", "):"<span style='color:var(--warn)'>no model available</span>"):"<span class='muted'>deterministic code, 0 tokens</span>"}</td></tr>`).join("")}</table>`}
 function spark(vals){if(!vals.length)return"<span class='muted'>no runs yet</span>";const w=420,h=60,mx=100,step=w/Math.max(1,vals.length-1);
  const pts=vals.map((v,i)=>`${(i*step).toFixed(1)},${(h-v/mx*h).toFixed(1)}`).join(" ");
  return `<svg width="${w}" height="${h+6}" role="img" aria-label="quality trend"><polyline fill="none" stroke="var(--accent)" stroke-width="2.5" points="${pts}"/></svg>`}
 async function loadLearn(){const d=await j("/api/learn");$("#learnT").innerHTML=`<h3>Quality trend</h3>${spark(d.quality.map(x=>x[1]))}
  <h3>Playbook lessons (ACE)</h3><table><tr><th>ID</th><th>Role</th><th>Lesson</th><th>+</th><th>−</th></tr>${d.lessons.map(l=>`<tr><td>${l.id}</td><td>${esc(l.role)}</td><td>${esc(l.text)}</td><td>${l.helpful}</td><td>${l.harmful}</td></tr>`).join("")||"<tr><td colspan=5 class=muted>none yet</td></tr>"}</table>
  <h3>Model leaderboard</h3><table><tr><th>Role</th><th>Model</th><th>Calls</th><th>Success</th><th>Validated quality</th></tr>${d.models.map(m=>`<tr><td>${esc(m.role)}</td><td>${esc(m.model_id)}</td><td>${m.calls}</td>
- <td>${m.calls?Math.round(m.successes/m.calls*100)+"%":"–"}</td><td>${m.quality_n?(m.quality_sum/m.quality_n).toFixed(2):"–"}</td></tr>`).join("")}</table>
+ <td>${m.calls?Math.round(m.successes/m.calls*100)+"%":"-"}</td><td>${m.quality_n?(m.quality_sum/m.quality_n).toFixed(2):"-"}</td></tr>`).join("")}</table>
  <h3>Source reputation</h3><table><tr><th>Domain</th><th>Supported</th><th>Partial</th><th>Unsupported</th><th>Reliability</th></tr>${d.sources.map(s=>`<tr><td>${esc(s.domain)}</td><td>${s.supported}</td><td>${s.partial}</td><td>${s.unsupported}</td><td>${s.reliability}</td></tr>`).join("")}</table>`}
 async function loadProv(){const rows=await j("/api/providers");$("#provT").innerHTML=`<table><tr><th>Provider</th><th>Configured</th><th>Models</th><th>Trains on data</th><th>Key</th><th>Notes</th></tr>${rows.map(r=>
- `<tr><td><b>${esc(r.provider)}</b></td><td>${r.configured?"✅":"—"}</td><td>${r.models}</td><td>${r.trains_on_data?"yes":"no"}</td><td><a href="${esc(r.signup)}" target="_blank" rel="noopener">${esc(r.key_env)}</a></td><td class="muted">${esc(r.notes)}</td></tr>`).join("")}</table>`}
+ `<tr><td><b>${esc(r.provider)}</b></td><td>${r.configured?"yes":"no"}</td><td>${r.models}</td><td>${r.trains_on_data?"yes":"no"}</td><td><a href="${esc(r.signup)}" target="_blank" rel="noopener">${esc(r.key_env)}</a></td><td class="muted">${esc(r.notes)}</td></tr>`).join("")}</table>`}
 loadRuns();setInterval(loadRuns,8000);
 </script>
 </body>

@@ -15,7 +15,7 @@
     {% set url = safe_url(f.source_urls[0]) if f.source_urls else None %}
     <li id="f-{{ f.id | lower }}" class="fact">
       <div class="fact-claim">{{ f.claim }}</div>
-      {% if f.quote %}<blockquote>“{{ f.quote }}”</blockquote>{% endif %}
+      {% if f.quote %}<blockquote>"{{ f.quote }}"</blockquote>{% endif %}
       <div class="fact-meta">
         {% if url %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer nofollow" referrerpolicy="no-referrer">{{ url | domain }}</a>{% endif %}{% if f.as_of %}, {{ f.as_of }}{% endif %};
         confidence {{ f.confidence | pct }}{% if f.status == "partial" %}; partly supported{% endif %}{% if f.corroborations %}; confirmed by {{ f.corroborations }} other source{{ "s" if f.corroborations > 1 }}{% endif %}

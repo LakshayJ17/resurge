@@ -50,7 +50,7 @@ function Analysis() {
   }, [id]);
 
   useEffect(() => {
-    if (data) document.title = `${data.target} · Resurge`;
+    if (data) document.title = `${data.target} | Resurge`;
   }, [data]);
 
   const live = data?.status === "queued" || data?.status === "running";
@@ -64,7 +64,7 @@ function Analysis() {
       </div>
     );
   }
-  if (!data) return <div className="wrap page"><Problem message={error} />{!error && <p className="muted">Loading…</p>}</div>;
+  if (!data) return <div className="wrap page"><Problem message={error} />{!error && <p className="muted">Loading...</p>}</div>;
 
   const depth = data.depth ? DEPTH_NAME[data.depth] : "";
   const phases = data.progress?.phases ?? [];
@@ -81,7 +81,7 @@ function Analysis() {
     return (
       <div className="wrap page run">
         <header className="page-head">
-          <p className="eyebrow">Competitor analysis{depth && ` · ${depth}`}</p>
+          <p className="eyebrow">Competitor analysis{depth && ` (${depth})`}</p>
           <h1>{data.target}</h1>
           <p className="live" aria-live="polite">
             <span className="live-dot" aria-hidden="true" />
@@ -94,8 +94,8 @@ function Analysis() {
 
         <Meter elapsed={elapsed} waiting={waiting} slow={slow} phases={phases} now={now} counts={counts}
           runKey={data.run_id}
-          label={waiting ? "waiting · it starts when the analysis ahead finishes"
-            : `elapsed · ${data.typical ?? "usually 10–20 minutes"}`} />
+          label={waiting ? "waiting: it starts when the analysis ahead finishes"
+            : `elapsed (${data.typical ?? "usually 10 to 20 minutes"})`} />
 
         <div className="run-grid">
           <section aria-labelledby="steps-title" className="run-steps">
@@ -115,11 +115,11 @@ function Analysis() {
   return (
     <div className="wrap page run">
       <header className="page-head">
-        <p className="eyebrow">Competitor analysis{depth && ` · ${depth}`}</p>
+        <p className="eyebrow">Competitor analysis{depth && ` (${depth})`}</p>
         <h1>{data.target}</h1>
         {data.status === "done" && data.finished_at && (
           <p className="meta">
-            Finished {when(data.finished_at)}{took !== null && ` · took ${duration(took)}`}
+            Finished {when(data.finished_at)}{took !== null && `, took ${duration(took)}`}
           </p>
         )}
       </header>
@@ -132,7 +132,7 @@ function Analysis() {
             <p key={i} className="measure summary-p">{para}</p>
           ))}
           <dl className="facts-row">
-            <div><dt>Compared with</dt><dd>{data.summary.competitors.join(", ") || "—"}</dd></div>
+            <div><dt>Compared with</dt><dd>{data.summary.competitors.join(", ") || "-"}</dd></div>
             <div><dt>Verified facts</dt><dd><Count value={data.summary.facts} /></dd></div>
             <div><dt>Quality score</dt><dd>{data.summary.quality.toFixed(0)} / 100</dd></div>
           </dl>
@@ -168,7 +168,7 @@ function Analysis() {
           <PhaseList phases={phases} now={now} live={false} />
           {counts && (
             <p className="note">
-              {counts.pages} pages read · {counts.facts} facts verified · {counts.ai_calls} AI calls
+              {counts.pages} pages read, {counts.facts} facts verified, {counts.ai_calls} AI calls
             </p>
           )}
         </details>

@@ -58,7 +58,7 @@ class ChiefOfStaff(Agent):
         if out.suggested_focus:
             ctx.notes.append("Intake focus suggestions: " + "; ".join(out.suggested_focus[:4]))
         self.emit("done", f"Brief ready: {ctx.target_kind} in {b.industry or 'unknown industry'}"
-                          f"{' · ' + domain_of(b.target_url) if b.target_url else ''}", model=resp.signature)
+                          f"{' (' + domain_of(b.target_url) + ')' if b.target_url else ''}", model=resp.signature)
 
 
 _REF = r"(?:F-(?:R\d{1,2}|[0-9a-fA-F]{1,8})|E-[0-9a-fA-F]{1,8}|R\d{1,2})"

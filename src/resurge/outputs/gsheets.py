@@ -2,9 +2,9 @@
 
 Configuration (environment variables):
 
-* ``GOOGLE_SERVICE_ACCOUNT_FILE`` – path to the service-account JSON key (required)
-* ``GOOGLE_SHEETS_SHARE_WITH``   – e-mail address to share the sheet with as writer
-* ``GOOGLE_DRIVE_FOLDER_ID``     – Drive folder to create the spreadsheet in
+* ``GOOGLE_SERVICE_ACCOUNT_FILE``: path to the service-account JSON key (required)
+* ``GOOGLE_SHEETS_SHARE_WITH``: e-mail address to share the sheet with as writer
+* ``GOOGLE_DRIVE_FOLDER_ID``: Drive folder to create the spreadsheet in
 
 The spreadsheet gets one worksheet per shared table from ``tables.build_tables``.
 Values are written with ``valueInputOption=RAW`` only, so Sheets stores every
@@ -72,9 +72,9 @@ def load_config(env: Mapping[str, str] | None = None) -> SheetsConfig:
 
 
 def spreadsheet_title(report: ResearchReport) -> str:
-    """"Resurge – <title or target> – YYYY-MM-DD"."""
+    """"Resurge - <title or target> - YYYY-MM-DD"."""
     name = one_line(report.title) or target_name(report)
-    return f"Resurge – {name} – {report.created_at.date().isoformat()}"
+    return f"Resurge - {name} - {report.created_at.date().isoformat()}"
 
 
 def a1_sheet(title: str) -> str:
@@ -84,7 +84,7 @@ def a1_sheet(title: str) -> str:
 
 def _cell(value: Cell) -> Cell:
     if isinstance(value, str) and len(value) > MAX_CELL_CHARS:
-        return value[: MAX_CELL_CHARS - 1] + "…"
+        return value[: MAX_CELL_CHARS - 3] + "..."
     return value
 
 

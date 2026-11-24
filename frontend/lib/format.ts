@@ -29,8 +29,8 @@ const SUFFIX: Record<string, string> = { one: "st", two: "nd", few: "rd", other:
 export const ordinal = (n: number) => `${n}${SUFFIX[ordinals.select(n)]}`;
 
 export const DEPTH_TEXT: Record<string, string> = {
-  quick: "Quick: 3 competitors, about 10–20 minutes",
-  standard: "Standard: 4 competitors, about 25–40 minutes",
+  quick: "Quick: 3 competitors, about 10 to 20 minutes",
+  standard: "Standard: 4 competitors, about 25 to 40 minutes",
   deep: "Deep: 6 competitors, about an hour",
 };
 

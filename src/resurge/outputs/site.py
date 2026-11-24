@@ -45,10 +45,10 @@ from resurge.schemas import CompetitorProfile, Fact, PricingTier, ResearchReport
 TEMPLATE_DIR = Path(__file__).parent / "templates" / "site"
 SEATS = (10, 50, 200)
 BUSINESS_RISKS = {"competitive", "market", "operational"}
-TIMEFRAMES = (("now", "Now", "next 30 days"), ("next", "Next", "30–90 days"), ("later", "Later", "90+ days"))
+TIMEFRAMES = (("now", "Now", "next 30 days"), ("next", "Next", "30-90 days"), ("later", "Later", "90+ days"))
 STATUS = {  # feature-matrix cell -> (icon, label, css class); colour never carries meaning alone
     "yes": ("✓", "Yes", "st-yes"), "partial": ("◐", "Partial", "st-partial"),
-    "no": ("✗", "No", "st-no"), "unknown": ("–", "Not found", "st-unknown"),
+    "no": ("✗", "No", "st-no"), "unknown": ("-", "Not found", "st-unknown"),
 }
 THREAT_CLASS = {1: "lvl-low", 2: "lvl-low", 3: "lvl-med", 4: "lvl-high", 5: "lvl-crit"}
 
@@ -67,7 +67,7 @@ ASK_SCRIPT = r"""
   function addMsg(role, text) { var m = el("div", "msg msg-" + role); m.appendChild(el("div", "msg-body", text)); log.appendChild(m); log.scrollTop = log.scrollHeight; return m; }
   function addAnswer(data) {
     var m = addMsg("bot", data.answer || "No answer.");
-    var meta = el("div", "msg-meta", "Confidence: " + (data.confidence || "low") + (data.grounded ? "" : " · not covered by the research"));
+    var meta = el("div", "msg-meta", "Confidence: " + (data.confidence || "low") + (data.grounded ? "" : " (not covered by the research)"));
     m.appendChild(meta);
     if (data.citations && data.citations.length) {
       var ol = el("ol", "msg-cites");
@@ -86,7 +86,7 @@ ASK_SCRIPT = r"""
   function ask(q) {
     q = (q || "").trim(); if (!q) return;
     if (location.protocol === "file:") { document.getElementById("ask-offline").scrollIntoView({ behavior: "smooth" }); return; }
-    addMsg("user", q); input.value = ""; status.textContent = "Searching the research…"; form.querySelector("button").disabled = true;
+    addMsg("user", q); input.value = ""; status.textContent = "Searching the research..."; form.querySelector("button").disabled = true;
     fetch("/api/runs/" + encodeURIComponent(runId) + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q, history: history.slice(-8) }) })
       .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || ("HTTP " + r.status)); return d; }); })
       .then(function (d) { addAnswer(d); history.push({ role: "user", content: q }, { role: "assistant", content: d.answer || "" }); status.textContent = ""; })
@@ -244,7 +244,7 @@ def timeline(report: ResearchReport, facts: Mapping[str, Fact], only: str | None
         for i in p.recent_moves:
             cited = [facts[f] for f in i.fact_ids if f in facts]
             when = parse_when(i.text, *[f.as_of for f in cited], *[f.claim for f in cited])
-            text = re.sub(r"^\s*[A-Z][a-z]{2,8}\.?\s+\d{4}\s*[:\-–—]\s*", "", i.text)  # 'Sep 2026: ...' -> date column
+            text = re.sub(r"^\s*[A-Z][a-z]{2,8}\.?\s+\d{4}\s*[:\-\u2013\u2014]\s*", "", i.text)  # 'Sep 2026: ...' -> date column
             moves.append(Move(sort=when[0] if when else (0, 0), when=when[1] if when else "Undated",
                               competitor=p.name, text=text, fact_ids=i.fact_ids))
     return sorted(moves, key=lambda m: m.sort, reverse=True)
@@ -378,7 +378,7 @@ def build_charts(report: ResearchReport, target: str, summaries: Mapping[str, Pr
     else:
         out["features"] = Markup("")
 
-    events = [sc.Event(m.competitor, m.sort, f"{m.when} · {m.competitor}: {m.text}", highlight=is_us(m.competitor))
+    events = [sc.Event(m.competitor, m.sort, f"{m.when}, {m.competitor}: {m.text}", highlight=is_us(m.competitor))
               for m in moves if m.sort[0]]
     out["timeline"] = sc.timeline(events, title="Competitor moves over time",
                                   desc="Launches, pricing changes, funding and leadership news with a known date")

@@ -29,7 +29,7 @@ def _e(value: object) -> str:
 
 def _clip(text: str, n: int) -> str:
     text = " ".join(str(text).split())
-    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+    return text if len(text) <= n else (text[: n - 3].rstrip() + "..." if n > 3 else text[:n])
 
 
 def _svg(height: float, title: str, desc: str, body: str, cls: str = "", width: int = W) -> Markup:

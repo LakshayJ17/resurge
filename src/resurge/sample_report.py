@@ -69,16 +69,16 @@ def _fid(key: str) -> str:
 # key, competitor, dimension, claim, value, quote, urls, status, confidence, grounded, corroborations
 _FACT_ROWS: list[tuple[str, str, str, str, str | None, str, list[str], str, float, bool, int]] = [
     ("atlas_overview", ATLAS, "overview", "Atlas Docs was founded in 2014 and is headquartered in Toronto.",
-     "Founded 2014 · Toronto", "Founded in 2014, Atlas Docs is headquartered in Toronto, Canada.",
+     "Founded 2014, Toronto", "Founded in 2014, Atlas Docs is headquartered in Toronto, Canada.",
      [f"{ATLAS_SITE}/about", f"{WIKI}/wiki/Atlas_Docs"], "supported", 0.93, True, 2),
     ("atlas_price_team", ATLAS, "pricing", "The Atlas Docs Team plan costs $10 per user per month, billed annually.",
-     "$10 / user / month", "Team — $10 per user / month, billed annually",
+     "$10 / user / month", "Team: $10 per user / month, billed annually",
      [f"{ATLAS_SITE}/pricing"], "supported", 0.95, True, 1),
     ("atlas_price_business", ATLAS, "pricing", "The Atlas Docs Business plan costs $18 per user per month.",
-     "$18 / user / month", "Business — $18 per user / month",
+     "$18 / user / month", "Business: $18 per user / month",
      [f"{ATLAS_SITE}/pricing"], "supported", 0.92, True, 1),
     ("atlas_price_enterprise", ATLAS, "pricing", "Atlas Docs Enterprise pricing is only available from sales.",
-     "Contact sales", "Enterprise — talk to our sales team for a tailored quote",
+     "Contact sales", "Enterprise: talk to our sales team for a tailored quote",
      [f"{ATLAS_SITE}/pricing"], "supported", 0.90, True, 1),
     ("atlas_free", ATLAS, "pricing", "Atlas Docs offers a free plan limited to three editors.",
      "Free for 3 editors", "Free forever for up to 3 members",
@@ -103,7 +103,7 @@ _FACT_ROWS: list[tuple[str, str, str, str, str | None, str, list[str], str, floa
      None, "trusted by knowledge teams in finance, healthcare and the public sector",
      [f"{ATLAS_SITE}/customers"], "supported", 0.80, True, 1),
     ("quill_price_free", QUILL, "pricing", "Quill Workspace has a free plan for individuals.",
-     "$0", "Free — for individuals getting organised",
+     "$0", "Free: for individuals getting organised",
      [f"{QUILL_SITE}/pricing"], "supported", 0.92, True, 1),
     ("quill_price_plus", QUILL, "pricing", "Quill Workspace Plus costs $8 per user per month.",
      "$8 / user / month", "Plus $8 per seat / month",
@@ -133,7 +133,7 @@ _FACT_ROWS: list[tuple[str, str, str, str, str | None, str, list[str], str, floa
      None, "templates are amazing, permissions are a maze",
      [f"{REVIEWS}/products/quill-workspace/reviews"], "supported", 0.75, True, 1),
     ("quill_hiring", QUILL, "team_hiring", "Quill Workspace is hiring enterprise account executives across EMEA.",
-     None, "Enterprise Account Executive — London, Berlin or Amsterdam",
+     None, "Enterprise Account Executive (London, Berlin or Amsterdam)",
      [f"{QUILL_SITE}/careers", f"{CAREERS}/companies/quill-workspace"], "supported", 0.82, True, 2),
     ("sprout_oss", SPROUT, "technology", "The Sprout Wiki core is open source under the AGPL-3.0 licence.",
      "AGPL-3.0", "Sprout Wiki is licensed under the GNU AGPL v3.0",
@@ -142,10 +142,10 @@ _FACT_ROWS: list[tuple[str, str, str, str, str | None, str, list[str], str, floa
      None, "Run Sprout anywhere: docker run sproutwiki/sprout",
      [f"{SPROUT_SITE}/docs/self-hosting", f"{CODE}/sprout-wiki/sprout"], "supported", 0.93, True, 2),
     ("sprout_price_cloud", SPROUT, "pricing", "Sprout Wiki Cloud costs $5 per user per month.",
-     "$5 / user / month", "Cloud — $5 per user per month",
+     "$5 / user / month", "Cloud: $5 per user per month",
      [f"{SPROUT_SITE}/pricing"], "supported", 0.90, True, 1),
     ("sprout_price_business", SPROUT, "pricing", "Sprout Wiki Business costs $9 per user per month.",
-     "$9 / user / month", "Business — $9 per user per month (annual)",
+     "$9 / user / month", "Business: $9 per user per month (annual)",
      [f"{SPROUT_SITE}/pricing"], "partial", 0.68, True, 1),
     ("sprout_funding", SPROUT, "funding_financials", "Sprout Wiki raised a $14M Series A in March 2026.",
      "$14M Series A (Mar 2026)", "Sprout Wiki has raised $14M in Series A funding",
@@ -420,7 +420,7 @@ def _swots() -> list[SWOT]:
             opportunities=[
                 _ins("Atlas Docs gates SSO behind Enterprise; offering it on Business wins mid-market teams.",
                      "atlas_sso"),
-                _ins("Quill users struggle with permissions — simple sharing is a wedge.", "quill_sentiment"),
+                _ins("Quill users struggle with permissions, so simple sharing is a wedge.", "quill_sentiment"),
                 _ins("Open-source buyers want self-hosting; a hosted EU option can capture them.", "sprout_selfhost"),
             ],
             threats=[
@@ -493,7 +493,7 @@ def _battlecards() -> list[Battlecard]:
                        "Which plan do you need for SAML SSO?"],
             objections=[
                 ObjectionHandler(objection="Atlas includes AI for free now.",
-                                 response="So do we — and ours runs on your notes in real time, not just drafts."),
+                                 response="So do we, and ours runs on your notes in real time, not just drafts."),
                 ObjectionHandler(objection="Atlas is the safe enterprise choice.",
                                  response="We match the controls you need (SSO, audit logs) at a mid-market price."),
             ],
@@ -522,7 +522,7 @@ def _battlecards() -> list[Battlecard]:
             why_we_win=["Managed EU hosting without the ops burden", "Rich integrations out of the box"],
             landmines=["Who maintains and patches your self-hosted instance?"],
             objections=[ObjectionHandler(objection="Sprout is free if we self-host.",
-                                         response="Factor in hosting, upgrades and on-call time — managed is "
+                                         response="Factor in hosting, upgrades and on-call time: managed is "
                                                   "usually cheaper below 200 seats.")],
             pricing_talk_track="Position total cost of ownership, not licence price.",
             fact_ids=[F["sprout_oss"], F["sprout_selfhost"], F["sprout_price_cloud"]],
@@ -532,20 +532,20 @@ def _battlecards() -> list[Battlecard]:
 
 def _sources() -> list[Source]:
     rows = [
-        (f"{ATLAS_SITE}/pricing", "Atlas Docs — Pricing", "official", 4, 0.9),
+        (f"{ATLAS_SITE}/pricing", "Atlas Docs | Pricing", "official", 4, 0.9),
         (f"{QUILL_SITE}/pricing", "Quill Workspace pricing", "official", 3, 0.9),
         (f"{NEWS}/2026/09/atlas-docs-ai-bundle", "Atlas Docs bundles AI into every paid plan", "news", 1, 0.75),
         (f"{SPROUT_SITE}/pricing", "Sprout Wiki pricing", "official", 2, 0.85),
         (f"{CODE}/sprout-wiki/sprout", "sprout-wiki/sprout: open-source team wiki", "code", 3, 0.9),
         (f"{REVIEWS}/products/atlas-docs/reviews", "Atlas Docs reviews", "review", 1, 0.6),
         (f"{REVIEWS}/products/quill-workspace/reviews", "Quill Workspace reviews", "review", 1, 0.6),
-        (f"{FORUM}/t/sprout-vs-atlas", "Sprout vs Atlas — which wiki for a 40-person team?", "community", 1, 0.45),
+        (f"{FORUM}/t/sprout-vs-atlas", "Sprout vs Atlas: which wiki for a 40-person team?", "community", 1, 0.45),
         (f"{FUNDING}/rounds/atlas-docs-series-d", "Atlas Docs Series D", "news", 1, 0.7),
         (f"{FUNDING}/rounds/sprout-wiki-series-a", "Sprout Wiki Series A", "news", 1, 0.7),
         (f"{QUILL_SITE}/blog/introducing-quill-enterprise", "Introducing Quill Enterprise", "official", 1, 0.85),
         (f"{ATLAS_SITE}/security", "Security at Atlas Docs", "official", 1, 0.9),
         (f"{QUILL_SITE}/developers", "Quill developer platform", "official", 1, 0.85),
-        (f"{WIKI}/wiki/Atlas_Docs", "Atlas Docs — Encyclopedia entry", "reference", 1, 0.65),
+        (f"{WIKI}/wiki/Atlas_Docs", "Atlas Docs | Encyclopedia entry", "reference", 1, 0.65),
         (f"{CAREERS}/companies/quill-workspace", "Quill Workspace careers", "other", 1, 0.55),
         (f"{FORUM}/t/quill-offline-mode", "Quill offline mode doesn't work?", "community", 1, 0.4),
         (f"{NEWS}/2026/03/open-source-wikis", "The rise of open-source wikis", "news", 0, 0.7),
@@ -677,7 +677,7 @@ def make_sample_report() -> ResearchReport:
     return ResearchReport(
         run_id="run-2026-11-15-nimbus",
         created_at=CREATED_AT,
-        title="Nimbus Notes — Competitive Landscape, Q4 2026",
+        title="Nimbus Notes: Competitive Landscape, Q4 2026",
         brief=ResearchBrief(
             target=TARGET,
             target_url="https://nimbusnotes.example.com",
@@ -706,10 +706,10 @@ def make_sample_report() -> ResearchReport:
             key_findings=[
                 _ins("Atlas Docs bundled AI writing into every paid plan in September 2026, resetting price "
                      "expectations for AI features.", "atlas_ai"),
-                _ins("List prices for paid tiers span $5–$18 per user per month; Sprout Wiki is cheapest and "
+                _ins("List prices for paid tiers span $5 to $18 per user per month; Sprout Wiki is cheapest and "
                      "Atlas Docs Business the most expensive.", "sprout_price_cloud", "atlas_price_business",
                      "quill_price_plus"),
-                _ins("SAML SSO is gated behind Enterprise at Atlas Docs — a clear opening for a mid-market "
+                _ins("SAML SSO is gated behind Enterprise at Atlas Docs, a clear opening for a mid-market "
                      "plan with SSO included.", "atlas_sso", confidence=0.9),
                 _ins("Quill Workspace is moving upmarket with an Enterprise tier and EMEA sales hiring.",
                      "quill_enterprise", "quill_hiring"),
@@ -733,8 +733,8 @@ def make_sample_report() -> ResearchReport:
         feature_matrix=_feature_matrix(),
         swots=_swots(),
         positioning=PositioningMap(
-            x_axis="Price (low → high)",
-            y_axis="Breadth of offering (narrow → broad)",
+            x_axis="Price (low to high)",
+            y_axis="Breadth of offering (narrow to broad)",
             x_low="Low",
             x_high="High",
             y_low="Narrow",
@@ -774,7 +774,7 @@ def make_sample_report() -> ResearchReport:
             white_space=[
                 _ins("A mid-market plan with SSO and AI included, priced between Quill Pro and Atlas Business.",
                      "atlas_sso", "quill_price_pro"),
-                _ins("Simple, opinionated permissions for teams of 20–200.", "quill_sentiment"),
+                _ins("Simple, opinionated permissions for teams of 20 to 200.", "quill_sentiment"),
                 _ins("Managed EU hosting for teams that would otherwise self-host.", "sprout_selfhost",
                      inferred=True, confidence=0.6),
             ],
@@ -828,7 +828,7 @@ def make_sample_report() -> ResearchReport:
 
 
 def make_minimal_report() -> ResearchReport:
-    """A report with nothing but the mandatory fields — every builder must cope."""
+    """A report with nothing but the mandatory fields: every builder must cope."""
     return ResearchReport(run_id="run-minimal-0001", created_at=CREATED_AT, brief=ResearchBrief(target="Minimal Co"))
 
 

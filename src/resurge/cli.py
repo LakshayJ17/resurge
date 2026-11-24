@@ -41,8 +41,8 @@ console = Console()
 
 DEPT_STYLE = {EXEC: "bold magenta", STRATEGY: "cyan", RESEARCH: "blue", QA: "green", ANALYSIS: "yellow",
               RISK: "red", COMMS: "bright_magenta", LEARNING: "bright_cyan", INFRA: "dim", FINANCE: "bright_green"}
-KIND_ICON = {"start": "→", "done": "✓", "warn": "!", "error": "✗", "review": "★", "handoff": "⇢", "stage": "▶",
-             "info": "·", "llm": "⚡"}
+KIND_ICON = {"start": ">", "done": "✓", "warn": "!", "error": "✗", "review": "*", "handoff": ">>", "stage": "▶",
+             "info": "-", "llm": "~"}
 
 
 def _settings(local: bool = False, private: bool = False, providers: str = "", no_cache: bool = False):
@@ -63,7 +63,7 @@ def _printer(verbose: bool):
         if e.kind == "llm" and not verbose:
             return
         style = DEPT_STYLE.get(e.department, "white")
-        icon = KIND_ICON.get(e.kind, "·")
+        icon = KIND_ICON.get(e.kind, "-")
         ts = time.strftime("%H:%M:%S", time.localtime(e.ts))
         model = f" [dim]({e.data['model']})[/dim]" if e.data.get("model") else ""
         msg = e.message.replace("[", "\\[")
@@ -145,9 +145,9 @@ def run(
     depth = brief.depth
     target = brief.target
     company = ResurgeCompany(s)
-    console.print(Panel.fit(f"[bold]Resurge[/bold] engagement · [cyan]{target}[/cyan] · depth [yellow]{depth.value}[/yellow]"
-                            + (" · [green]local-only[/green]" if s.local_only else "")
-                            + (" · [green]private[/green]" if s.private_mode else ""), border_style="magenta"))
+    console.print(Panel.fit(f"[bold]Resurge[/bold] engagement: [cyan]{target}[/cyan], depth [yellow]{depth.value}[/yellow]"
+                            + (", [green]local-only[/green]" if s.local_only else "")
+                            + (", [green]private[/green]" if s.private_mode else ""), border_style="magenta"))
     if keep_awake and _keep_awake():
         console.print("[dim]Keeping the Mac awake while this run is active (lid-close still sleeps).[/dim]")
     try:
@@ -176,7 +176,7 @@ def _summary(result) -> None:
                  ("LLM calls", f"{m.llm_calls} (+{m.cache_hits} cache hits, {m.llm_failures} failovers)"),
                  ("Tokens", f"{m.tokens_in + m.tokens_out:,}"),
                  ("Searches / pages", f"{m.searches} / {m.pages_fetched}"),
-                 ("Cost", f"$0.00 (≈ ${m.estimated_paid_cost_usd:.2f} on a paid frontier API)"),
+                 ("Cost", f"$0.00 (about ${m.estimated_paid_cost_usd:.2f} on a paid frontier API)"),
                  ("Duration", f"{m.duration_s:.0f}s")]:
         t.add_row(f"[dim]{k}[/dim]", v)
     console.print(t)
@@ -272,7 +272,7 @@ def models(role: Optional[str] = typer.Option(None, help="Show routing order for
     gw = LLMGateway(reg, st, s, budget=Budget())
     if role:
         cands = gw.candidates(role, 2000)
-        console.print(f"[bold]{role}[/bold] routing order now: " + " → ".join(m.id for m in cands[:8]) or "(none)")
+        console.print(f"[bold]{role}[/bold] routing order now: " + ", ".join(m.id for m in cands[:8]) or "(none)")
         asyncio.run(gw.aclose())
         return
     health = st.all_health()
@@ -316,7 +316,7 @@ def org():
     for p in ORG.values():
         if p.role:
             cands = [m.id for m in gw.candidates(p.role, 2000)[:3]]
-            route = " → ".join(cands) if cands else "[yellow]no model available[/yellow]"
+            route = ", ".join(cands) if cands else "[yellow]no model available[/yellow]"
         else:
             route = "[dim]deterministic code (0 tokens)[/dim]"
         t.add_row(f"[{DEPT_STYLE.get(p.department, 'white')}]{p.department}[/]", p.title, p.mission, route)
@@ -447,7 +447,7 @@ def index(run_id: Optional[str] = typer.Argument(None, help="Run to index (defau
     for rid in ids:
         try:
             report = rag.load_report(s, rid)
-            with console.status(f"Indexing {rid} …"):
+            with console.status(f"Indexing {rid}..."):
                 stats = rag.index_run(s, report, storage=st)
             t.add_row(rid, str(stats["chunks"]), stats["backend"], f"{stats['seconds']:.1f}")
         except rag.RunNotFound as e:
@@ -487,18 +487,18 @@ def chat(run_id: Optional[str] = typer.Argument(None, help="Run to chat with (de
     async def repl() -> None:
         st = rag.status(s, run_id)
         if not st["indexed"]:
-            with console.status("Indexing this run (first time only) …"):
+            with console.status("Indexing this run (first time only)..."):
                 st = await asyncio.to_thread(rag.index_run, s, report)
-        header = Text.assemble(("Resurge chat", "bold magenta"), " · ", (report.brief.target, "cyan"), " vs ",
+        header = Text.assemble(("Resurge chat", "bold magenta"), ": ", (report.brief.target, "cyan"), " vs ",
                                ", ".join(c.name for c in report.competitors) or "-",
-                               f"\nrun {run_id} · {st['chunks']} chunks · {st['backend']} · /exit to quit")
+                               f"\nrun {run_id}, {st['chunks']} chunks, {st['backend']} store. Type /exit to quit")
         console.print(Panel(header, border_style="magenta"))
         llm = await rag.make_gateway(s, run_id)
         history: list[dict] = []
         try:
             while True:
                 try:
-                    question = (await asyncio.to_thread(console.input, "[bold cyan]You ›[/bold cyan] ")).strip()
+                    question = (await asyncio.to_thread(console.input, "[bold cyan]You >[/bold cyan] ")).strip()
                 except (EOFError, KeyboardInterrupt):
                     break
                 if not question:
@@ -507,7 +507,7 @@ def chat(run_id: Optional[str] = typer.Argument(None, help="Run to chat with (de
                     break
                 t0 = time.time()
                 try:
-                    with console.status("Thinking …"):
+                    with console.status("Thinking..."):
                         out = await rag.ask(s, run_id, question[: rag.MAX_QUESTION], history, llm=llm)
                 except Exception as e:  # noqa: BLE001 - keep the REPL alive; never echo provider bodies
                     msg = str(e) if isinstance(e, rag.RagUnavailable) else type(e).__name__
@@ -516,18 +516,18 @@ def chat(run_id: Optional[str] = typer.Argument(None, help="Run to chat with (de
                 style = {"high": "green", "medium": "yellow", "low": "red"}[out["confidence"]]
                 console.print(Panel(Markdown(_term_safe(out["answer"]), hyperlinks=False), border_style=style,
                                     title=f"confidence {out['confidence']}"
-                                          + ("" if out["grounded"] else " · not covered"),
+                                          + ("" if out["grounded"] else " (not covered)"),
                                     subtitle=f"{time.time() - t0:.1f}s"))
                 for c in out["citations"]:
                     line = Text(f"[{c['n']}] ", style="bold")
                     line.append(_term_safe(c["claim"]))
                     if c.get("competitor"):
-                        line.append(f" · {_term_safe(c['competitor'])}", style="cyan")
+                        line.append(f" ({_term_safe(c['competitor'])})", style="cyan")
                     if c.get("url"):
                         line.append(f"\n    {_term_safe(c.get('title') or '')} {_term_safe(c['url'])}".rstrip(), style="dim")
                     console.print(line)
                 if out["followups"]:
-                    console.print(Text("Try: " + "  ·  ".join(_term_safe(f) for f in out["followups"]),
+                    console.print(Text("Try: " + "  |  ".join(_term_safe(f) for f in out["followups"]),
                                        style="dim italic"))
                 history += [{"role": "user", "content": question}, {"role": "assistant", "content": out["answer"]}]
                 history = history[-rag.MAX_TURNS:]
@@ -614,7 +614,7 @@ def ui(host: str = "127.0.0.1", port: int = 8765):
         raise typer.Exit(1) from e
     from .web.app import create_app
 
-    console.print(f"[magenta]Resurge dashboard[/magenta] → http://{host}:{port}")
+    console.print(f"[magenta]Resurge dashboard[/magenta]: http://{host}:{port}")
     uvicorn.run(create_app(), host=host, port=port, log_level="warning")
 
 
@@ -661,7 +661,7 @@ def serve(host: str = typer.Option("0.0.0.0", help="Interface to listen on"),
         console.print(f"[yellow]The website is not built yet ({site}). Build it once: "
                       "cd frontend && npm install && npm run build[/yellow]")
     trust_proxy = os.getenv("RESURGE_TRUST_PROXY", "0").strip().lower() in ("1", "true", "yes", "caddy", "cloudflare")
-    console.print(f"[magenta]Resurge web app[/magenta] → http://{host}:{port}"
+    console.print(f"[magenta]Resurge web app[/magenta]: http://{host}:{port}"
                   + (" (trusting proxy headers)" if trust_proxy else ""))
     uvicorn.run(create_hosted_app(), host=host, port=port, log_level="info", proxy_headers=trust_proxy,
                 forwarded_allow_ips="*" if trust_proxy else "127.0.0.1")

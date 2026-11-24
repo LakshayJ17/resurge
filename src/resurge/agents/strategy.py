@@ -34,7 +34,7 @@ class DiscoveryOutput(LLMModel):
 
 
 def _clean_name(name: str) -> str:
-    name = re.sub(r"\s*\(.*?\)\s*", " ", name or "").strip(" -–—:|")
+    name = re.sub(r"\s*\(.*?\)\s*", " ", name or "").strip(" -\u2013\u2014:|")
     return re.sub(r"\s+", " ", name)
 
 

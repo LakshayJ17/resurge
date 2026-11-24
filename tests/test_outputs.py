@@ -243,7 +243,7 @@ def test_pptx_truncates_long_text(tmp_path: Path) -> None:
             for p in frame.paragraphs:
                 text = "".join(r.text for r in p.runs)
                 longest_paragraph = max(longest_paragraph, len(text))
-                ellipses += text.endswith("…")
+                ellipses += text.endswith("...")
                 assert "\x00" not in text and "\x07" not in text
     assert longest_paragraph < 700
     assert ellipses > 10
@@ -253,11 +253,11 @@ def test_pptx_truncates_long_text(tmp_path: Path) -> None:
 
 
 def test_fit_paras_clips_and_reports_overflow() -> None:
-    paras = [para("word " * 200, size=12, max_lines=2, bullet="•") for _ in range(30)]
+    paras = [para("word " * 200, size=12, max_lines=2, bullet="\u2022") for _ in range(30)]
     fitted, overflow = fit_paras(paras, 5.0, 3.0)
     assert fitted and overflow
     assert len(fitted) + len(overflow) == 30
-    assert all(p.text.endswith("…") and len(p.text) < 200 for p in fitted)
+    assert all(p.text.endswith("...") and len(p.text) < 200 for p in fitted)
 
 
 # --------------------------------------------------------------------------- #
@@ -365,14 +365,14 @@ def test_table_contents_for_sample_report() -> None:
 
 
 def test_formatting_helpers() -> None:
-    assert T.clip("hello wonderful world", 16) == "hello wonderful…"
-    assert T.clip("hello wonderful world", 12) == "hello wonde…"  # boundary too far back: hard cut
+    assert T.clip("hello wonderful world", 18) == "hello wonderful..."
+    assert T.clip("hello wonderful world", 12) == "hello won..."  # boundary too far back: hard cut
     assert T.clip("short", 12) == "short"
     assert len(T.clip("x" * 500, 40)) == 40
     lines = T.wrap_lines("alpha beta gamma delta epsilon zeta eta theta", 12, max_lines=2)
-    assert len(lines) == 2 and lines[-1].endswith("…")
+    assert len(lines) == 2 and lines[-1].endswith("...")
     assert T.compact_number(1_284_000) == "1.3M" and T.compact_number(950) == "950"
-    assert T.pct(0.8235) == "82%" and T.pct(None) == "–"
+    assert T.pct(0.8235) == "82%" and T.pct(None) == "-"
     assert T.fmt_usd(12) == "$12" and T.fmt_usd(7.5) == "$7.50"
     assert T.safe_url("javascript:alert(1)") is None and T.safe_url("https://a.example/x")
     assert T.clean("a\x00b\x0bc") == "abc"
@@ -410,7 +410,7 @@ def test_gsheets_batch_requests() -> None:
     assert [d["range"] for d in data][3] == "'Feature Matrix'!A1"
     assert all(d["values"][0] == t.headers for d, t in zip(data, tables.values()))
     assert a1_sheet("Bob's") == "'Bob''s'"
-    assert spreadsheet_title(report) == "Resurge – Nimbus Notes — Competitive Landscape, Q4 2026 – 2026-11-15"
+    assert spreadsheet_title(report) == "Resurge - Nimbus Notes: Competitive Landscape, Q4 2026 - 2026-11-15"
 
 
 # --------------------------------------------------------------------------- #

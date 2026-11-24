@@ -77,7 +77,7 @@ function Dashboard({ user, config }: { user: User; config: SiteConfig }) {
           <div className="big-input">
             <input id="company" type="text" required maxLength={300} placeholder="For example: Notion or linear.app"
               autoComplete="off" value={company} onChange={(e) => setCompany(e.target.value)} />
-            <button className="btn" type="submit" disabled={busy || out}>{busy ? "Starting…" : "Start research"}</button>
+            <button className="btn" type="submit" disabled={busy || out}>{busy ? "Starting..." : "Start research"}</button>
           </div>
           {out && <p className="hint" style={{ marginTop: 8 }}>You have used today&apos;s analyses. More tomorrow.</p>}
         </div>
@@ -110,7 +110,7 @@ function Dashboard({ user, config }: { user: User; config: SiteConfig }) {
 
       <section aria-labelledby="yours">
         <h2 id="yours">Your analyses</h2>
-        {jobs === null ? <p className="muted">Loading…</p> : jobs.length === 0 ? (
+        {jobs === null ? <p className="muted">Loading...</p> : jobs.length === 0 ? (
           <p className="muted">Nothing yet. Your reports will be listed here.</p>
         ) : (
           <div className="table-wrap">

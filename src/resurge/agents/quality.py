@@ -60,7 +60,7 @@ def _excerpt(text: str, quote: str, width: int = 420) -> str:
     if pos < 0:
         return truncate(text, width * 2)
     start = max(0, pos - width)
-    return ("…" if start else "") + norm_text[start: pos + len(norm_q) + width] + "…"
+    return ("..." if start else "") + norm_text[start: pos + len(norm_q) + width] + "..."
 
 
 OTHER_ENTITY = re.compile(r"(different|another|other|wrong) (company|organi[sz]ation|entity|product|business)"
@@ -264,7 +264,7 @@ class QAReviewer(Agent):
         review = StageReview(stage=stage, reviewer=f"{self.title}@{resp.model_id}", score=round(score, 1),
                              verdict=verdict, issues=[truncate(i, 240) for i in out.issues[:8]],
                              suggestions=[truncate(s, 240) for s in out.suggestions[:6]])
-        self.emit("review", f"{stage}: {review.score}/10 → {verdict}", model=resp.signature, issues=review.issues[:3])
+        self.emit("review", f"{stage}: {review.score}/10, {verdict}", model=resp.signature, issues=review.issues[:3])
         return review
 
 

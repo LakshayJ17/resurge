@@ -405,7 +405,7 @@ def test_progress_api_shows_steps_and_hides_server_paths(make_client, tmp_path):
         wait_done(app, run_id)
         st = Storage(tmp_path / "data" / "resurge.db")
         for kind, agent, msg in (("stage", "COO", "▶ Intake"), ("stage", "COO", "▶ Research & verification"),
-                                 ("info", "Research Lead", "Nimbus: fetched 3/6 pages → 20 evidence chunks"),
+                                 ("info", "Research Lead", "Nimbus: fetched 3/6 pages, 20 evidence chunks"),
                                  ("stage", "COO", "▶ Publishing"),
                                  ("info", "Publishing Desk", f"pdf: {tmp_path}/reports/{run_id}/report.pdf")):
             st.add_event(run_id, "x", agent, kind, msg)

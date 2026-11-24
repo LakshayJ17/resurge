@@ -191,7 +191,7 @@ def fenced(kind: str, ident: str, meta: str, body: str, nonce: str) -> str:
 def quoted_name(value: str, limit: int = 120) -> str:
     """A name (company, competitor, audience) for a prompt: one line, no quotes or fence markers, in quotes, so it
     reads as a value and cannot pass for an instruction of its own."""
-    one = re.sub(r"[\s\"“”]+", " ", strip_invisible(value or "")).strip()[:limit]
+    one = re.sub(r"[\s\"\u201c\u201d]+", " ", strip_invisible(value or "")).strip()[:limit]
     return '"' + defang(one) + '"'
 
 

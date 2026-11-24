@@ -81,7 +81,7 @@ class BraveBackend(SearchBackend):
             if not isinstance(r, dict):
                 continue
             parts = [r.get("description") or ""] + [s for s in r.get("extra_snippets") or [] if isinstance(s, str)]
-            snippet = " … ".join(p for p in parts if p)
+            snippet = " ... ".join(p for p in parts if p)
             source = (r.get("profile") or {}).get("name") or ""
             if data.get("type") == "news" and source:
                 snippet = f"{source}: {snippet}" if snippet else source
