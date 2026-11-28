@@ -61,8 +61,8 @@ Security built in:
   `Cross-Origin-Resource-Policy: same-origin`, no API docs and no server banner, no caching of private pages,
   reports visible only to their owner (any other id is a 404), provider error text never shown to users. SQL
   always takes values as parameters, and the two helpers that build column names accept only real columns.
-- **Dependencies:** [Dependabot](../.github/dependabot.yml) opens weekly pull requests for outdated or vulnerable
-  Python, npm, Docker and Actions dependencies; turn on "Dependabot security updates" in the repository settings.
+- **Dependencies:** check for known vulnerabilities before an update with `uvx pip-audit` (Python) and `npm audit`
+  in `frontend/`; GitHub's free "Dependabot alerts" (Settings > Code security) can also warn by email.
 - **Prompt injection:** company names, competitors and questions are shape-checked and scanned before any model sees
   them (override phrases, role tags, code, off-task requests such as "write a phishing email"); questions reach the
   agents as a fenced data block; chat questions and the browser-supplied chat history are screened the same way, and
