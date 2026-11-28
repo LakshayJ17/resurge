@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # One-time setup of a fresh Ubuntu 24.04 server for the Resurge web app (docs/DEPLOY.md). Safe to run again.
 #
-#   curl -fsSL https://raw.githubusercontent.com/LakshayJ17/resurge/web-app/deploy/setup-server.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/LakshayJ17/resurge/main/deploy/setup-server.sh | bash
 #
 # Adds swap (free 1 GB servers need it), installs Docker and git, and clones or updates the code in ~/resurge.
 # It never creates, reads or changes .env: put your API keys and hosted settings there yourself.
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/LakshayJ17/resurge.git}"
-BRANCH="${BRANCH:-web-app}"
+BRANCH="${BRANCH:-main}"
 APP_DIR="${APP_DIR:-$HOME/resurge}"
 SWAP_GB="${SWAP_GB:-4}"
 

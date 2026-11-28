@@ -6,7 +6,7 @@ name: docker-image
 
 on:
   push:
-    branches: [web-app, main]
+    branches: [main]
     tags: ["v*"]
     paths-ignore: ["docs/**", "**/*.md", "tests/**", "examples/**"]
   workflow_dispatch:

@@ -128,7 +128,7 @@ sign in, create a subdomain (for example `resurge-yourname.duckdns.org`) and set
 
 ```bash
 ssh ubuntu@<server-ip>        # azureuser@ on Azure
-curl -fsSL https://raw.githubusercontent.com/LakshayJ17/resurge/web-app/deploy/setup-server.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LakshayJ17/resurge/main/deploy/setup-server.sh | bash
 ```
 
 [`deploy/setup-server.sh`](../deploy/setup-server.sh) adds 4 GB of swap (a 1 GB server needs it), installs Docker
