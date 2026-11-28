@@ -69,7 +69,7 @@ jobs:
       # Artifacts can be downloaded by anyone who can read this repository: keep the repository private if the
       # reports are confidential.
       - name: Upload deliverables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: resurge-reports
           path: reports/
