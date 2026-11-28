@@ -1,13 +1,15 @@
-# Free scheduled competitor monitoring on GitHub-hosted runners.
-# - Add your free API keys as repository secrets (GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, ...).
-# - Set repository variables RESURGE_TARGET and RESURGE_COMPETITORS (or use the manual "Run workflow" form).
-# - data/resurge.db is cached between runs, so the knowledge base, model/source reputations and
-#   playbook lessons keep improving week after week (the self-improvement loop needs memory).
+# Free competitor monitoring on GitHub-hosted runners: re-runs an analysis and reports what changed since last time.
+# It runs only when started by hand (Actions > resurge-watch > Run workflow). To run it every week:
+# - add your free API keys as repository secrets (GROQ_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, ...);
+# - set repository variables RESURGE_TARGET and RESURGE_COMPETITORS;
+# - uncomment the two `schedule` lines below.
+# data/resurge.db is cached between runs, so the knowledge base, model/source reputations and playbook lessons keep
+# improving run after run (the self-improvement loop needs memory).
 name: resurge-watch
 
 on:
-  schedule:
-    - cron: "0 7 * * 1"   # every Monday 07:00 UTC
+  # schedule:
+  #   - cron: "0 7 * * 1"   # every Monday 07:00 UTC
   workflow_dispatch:
     inputs:
       target:
