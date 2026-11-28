@@ -5,7 +5,7 @@
 
 # 1) The website: a Next.js static export (frontend/out). Node is only needed to build it, and its output is plain
 #    files, so it is built on the build machine's own CPU even when the image is for another (x64 or Arm).
-FROM --platform=$BUILDPLATFORM node:22-alpine AS website
+FROM --platform=$BUILDPLATFORM node:26-alpine AS website
 WORKDIR /web
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY frontend/package.json frontend/package-lock.json ./
