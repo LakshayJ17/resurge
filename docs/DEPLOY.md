@@ -21,7 +21,10 @@ Browser --HTTPS--> Caddy (or a Cloudflare Tunnel) --> resurge serve (Docker: web
 | `RESURGE_CHAT_PER_USER_DAY` | 40 | Chat questions per account per day |
 | `RESURGE_ALLOWED_DEPTHS` | `quick,standard` | Depths users may choose |
 | `RESURGE_ADMIN_EMAILS` | none | Addresses that may be admins (see `/admin`, no limits). The account itself is created with `resurge admin EMAIL` on the server; web sign-up refuses these addresses |
-| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | off | Free Cloudflare bot check on sign-up (recommended with open sign-up) |
+| `RESURGE_CAPTCHA` | `on` | Self-hosted proof-of-work bot check on sign-up and log-in (no third party); `off` disables it |
+| `RESURGE_CAPTCHA_MAX` | 100000 | Puzzle size: the browser tries about half this many hashes (well under a second) |
+| `RESURGE_REQUEST_BURST`, `RESURGE_REQUEST_RATE` | 120, 2 | Requests per network: a burst of 120, then 2 a second (static files and `/healthz` are exempt); `RESURGE_REQUEST_BURST=0` turns the limit off |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | off | Cloudflare's free bot check on sign-up, on top of the proof of work |
 | `RESURGE_PUBLIC_URL` | none | Your full https address (with `https://`); turns on secure cookies, and only this origin may post and only its host name is answered |
 | `RESURGE_ALLOWED_HOSTS` | none | Extra host names the server answers to (besides localhost and the public URL), e.g. a LAN address for testing; other Host headers get 421 |
 | `RESURGE_TRUST_PROXY` | `0` | `1` behind Caddy (reads the last `X-Forwarded-For` entry), `cloudflare` behind a Cloudflare Tunnel (reads `CF-Connecting-IP`); docker-compose sets `1` |
@@ -39,15 +42,27 @@ Security built in:
   Known limit: without email verification, sign-up says when an address already has an account (rate-limited to 5
   tries per network per hour).
 - **Admins:** only made on the server (`resurge admin EMAIL`), and only while the address is in
-  `RESURGE_ADMIN_EMAILS`; removing it from the list removes the rights at the next restart.
+  `RESURGE_ADMIN_EMAILS`; removing it from the list removes the rights at the next restart. The `/admin` page is a
+  404 for everyone else (its API refuses them too), and admin actions are logged with who did them: opening the
+  panel, opening someone else's analysis or report, disabling or enabling an account.
+- **Bot check:** sign-up and log-in send a solved proof-of-work puzzle (the scheme ALTCHA uses): the server signs a
+  random puzzle, the browser solves it while the person types, and each solution works once within 10 minutes.
+  It costs a script CPU time per attempt but proves nothing about being human, so it works together with the limits
+  below rather than replacing them.
 - **Sessions:** random tokens stored only as hashes, rotated at log-in, 3-day idle and 14-day absolute expiry,
   `__Host-` HttpOnly SameSite cookies over HTTPS, password change and "log out everywhere" revoke every session.
 - **Abuse:** one account per inbox (plus-aliases and Gmail dots count as the same address), throwaway email domains
   refused (`RESURGE_BLOCKED_EMAIL_DOMAINS` adds more), honeypot field, optional Turnstile, a 64 KB request limit that
   also holds for chunked uploads, daily caps checked and reserved in one step (parallel requests can't slip past them)
   and counted against the hashed address and network, so deleting an account and signing up again doesn't reset them.
-- **Requests:** Origin check on every form and API call, strict Content-Security-Policy on app and report pages,
-  no caching of private pages, reports visible only to their owner, provider error text never shown to users.
+- **Requests:** Origin check on every form and API call (no CORS headers, so other sites can't read the API), a
+  general per-network request limit, chat questions limited to 6 a minute on top of the daily cap, strict
+  Content-Security-Policy on app and report pages (`default-src 'none'` on API answers), HSTS over HTTPS,
+  `Cross-Origin-Resource-Policy: same-origin`, no API docs and no server banner, no caching of private pages,
+  reports visible only to their owner (any other id is a 404), provider error text never shown to users. SQL
+  always takes values as parameters, and the two helpers that build column names accept only real columns.
+- **Dependencies:** [Dependabot](../.github/dependabot.yml) opens weekly pull requests for outdated or vulnerable
+  Python, npm, Docker and Actions dependencies; turn on "Dependabot security updates" in the repository settings.
 - **Prompt injection:** company names, competitors and questions are shape-checked and scanned before any model sees
   them (override phrases, role tags, code, off-task requests such as "write a phishing email"); questions reach the
   agents as a fenced data block; chat questions and the browser-supplied chat history are screened the same way, and

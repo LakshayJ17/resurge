@@ -344,11 +344,14 @@ class Accounts:
         self.revoke_sessions(user_id)
         self.audit("password_changed", user_id=user_id, email=row["email"], ip=ip)
 
-    def set_disabled(self, user_id: int, disabled: bool, by: str = "") -> None:
+    def set_disabled(self, user_id: int, disabled: bool, by: str = "", ip: str = "") -> None:
+        row = self._one("SELECT email FROM users WHERE id=?", (user_id,))
         self._exec("UPDATE users SET disabled=? WHERE id=?", (1 if disabled else 0, user_id))
         if disabled:
             self.revoke_sessions(user_id)
-        self.audit("user_disabled" if disabled else "user_enabled", user_id=user_id, detail=f"by {by}")
+        # admin action: who did it (email, ip) and to whom (user id and address)
+        self.audit("admin_disabled_user" if disabled else "admin_enabled_user", user_id=user_id, email=by, ip=ip,
+                   detail=f"account {row['email'] if row else user_id}")
 
     def delete_user(self, user_id: int, password: str, ip: str = "") -> list[str]:
         """Delete the account and its records; returns the run ids whose report files should be removed."""
@@ -447,7 +450,15 @@ class Accounts:
         """Forget a reservation the guardrails refused (it never ran, so it does not count)."""
         self._exec("DELETE FROM jobs WHERE run_id=? AND status='checking'", (run_id,))
 
+    def _job_columns(self) -> set[str]:
+        if not getattr(self, "_job_cols", None):
+            self._job_cols = {r["name"] for r in self._db.execute("PRAGMA table_info(jobs)")}
+        return self._job_cols
+
     def set_job(self, run_id: str, **fields: Any) -> None:
+        bad = set(fields) - self._job_columns()
+        if bad:  # column names go into the SQL text, so only real columns may pass
+            raise ValueError(f"unknown job fields: {sorted(bad)}")
         cols = ", ".join(f"{k}=?" for k in fields)
         self._exec(f"UPDATE jobs SET {cols} WHERE run_id=?", (*fields.values(), run_id))
 
@@ -536,6 +547,30 @@ class RateLimiter:
             while len(self._hits) > self.MAX_KEYS:
                 self._hits.popitem(last=False)
             return True
+
+
+class TokenBucket:
+    """Per-key token bucket for the general request limit: ``burst`` requests at once, then ``rate`` per second.
+    Unlike RateLimiter it keeps two numbers per key whatever the limit, so a flood costs no memory per request."""
+
+    MAX_KEYS = 50_000
+
+    def __init__(self, burst: int, rate: float) -> None:
+        self.burst, self.rate = float(burst), float(rate)
+        self._state: OrderedDict[str, tuple[float, float]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def take(self, key: str) -> float:
+        """Spend one token. Returns 0 when allowed, else the seconds until the next token."""
+        now = time.monotonic()
+        with self._lock:
+            tokens, last = self._state.pop(key, (self.burst, now))
+            tokens = min(self.burst, tokens + (now - last) * self.rate)
+            allowed = tokens >= 1
+            self._state[key] = (tokens - 1 if allowed else tokens, now)
+            while len(self._state) > self.MAX_KEYS:
+                self._state.popitem(last=False)
+        return 0.0 if allowed else (1 - tokens) / self.rate
 
 
 def start_of_day(now: float | None = None) -> float:

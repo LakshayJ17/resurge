@@ -654,6 +654,8 @@ def serve(host: str = typer.Option("0.0.0.0", help="Interface to listen on"),
     except ImportError as e:
         console.print("[red]Install the web extra: pip install 'resurge[web,rag]'[/red]")
         raise typer.Exit(1) from e
+    from urllib.parse import urlparse
+
     from .web.hosted import create_hosted_app, default_frontend_dir
 
     site = Path(os.getenv("RESURGE_FRONTEND_DIR") or default_frontend_dir())
@@ -663,8 +665,13 @@ def serve(host: str = typer.Option("0.0.0.0", help="Interface to listen on"),
     trust_proxy = os.getenv("RESURGE_TRUST_PROXY", "0").strip().lower() in ("1", "true", "yes", "caddy", "cloudflare")
     console.print(f"[magenta]Resurge web app[/magenta]: http://{host}:{port}"
                   + (" (trusting proxy headers)" if trust_proxy else ""))
+    public = os.getenv("RESURGE_PUBLIC_URL", "").strip()
+    if public.startswith("http://") and urlparse(public).hostname not in ("localhost", "127.0.0.1", "::1"):
+        console.print("[yellow]RESURGE_PUBLIC_URL starts with http://: passwords and session cookies would travel "
+                      "unencrypted. Put HTTPS in front (Caddy) and use the https:// address.[/yellow]")
+    # no "server: uvicorn" header: nothing that tells a visitor which server and version answer
     uvicorn.run(create_hosted_app(), host=host, port=port, log_level="info", proxy_headers=trust_proxy,
-                forwarded_allow_ips="*" if trust_proxy else "127.0.0.1")
+                forwarded_allow_ips="*" if trust_proxy else "127.0.0.1", server_header=False)
 
 
 @app.command()

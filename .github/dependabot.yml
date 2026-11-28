@@ -1,0 +1,18 @@
+# Weekly pull requests for outdated or vulnerable dependencies (free on GitHub). Security fixes arrive as soon as
+# GitHub publishes an advisory, if "Dependabot security updates" is on under Settings > Code security.
+version: 2
+updates:
+  - package-ecosystem: uv            # the Python packages (pyproject.toml, uv.lock)
+    directory: /
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm           # the website
+    directory: /frontend
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker        # the Python and Node base images
+    directory: /
+    schedule: {interval: weekly}
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: monthly}

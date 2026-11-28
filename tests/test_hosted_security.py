@@ -163,7 +163,7 @@ def test_admin_can_disable_an_account_and_others_cannot(make_client):
         r = login(client)
         assert r.status_code == 400 and "disabled" in r.json()["detail"]
         events = [e["event"] for e in boss.get("/api/admin").json()["events"]]
-        assert "user_disabled" in events
+        assert "admin_disabled_user" in events
 
 
 # --------------------------------------------------------------------------- abuse & robustness

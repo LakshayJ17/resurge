@@ -68,7 +68,9 @@ def make_client(tmp_path, monkeypatch):
                            runs_total_day=50, max_concurrent=1, max_queue=10, chat_per_user_day=2,
                            allowed_depths=["quick", "standard"], turnstile_site_key="", turnstile_secret="",
                            public_url="", trust_proxy=False, private_mode=False, pwned_check=False,
-                           frontend_dir=str(site), extra_origins=set(), allowed_hosts={"testserver"})
+                           frontend_dir=str(site), extra_origins=set(), allowed_hosts={"testserver"},
+                           # on in production; tests that check them turn them on
+                           captcha=False, request_burst=0)
         for k, v in overrides.items():
             setattr(cfg, k, v)
         settings = Settings(home=tmp_path)

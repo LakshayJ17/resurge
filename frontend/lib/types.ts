@@ -10,6 +10,8 @@ export type User = {
 export type SiteConfig = {
   signup_open: boolean;
   turnstile_site_key: string;
+  /** the sign-up and log-in forms must send a solved proof-of-work puzzle (lib/pow.ts) */
+  captcha?: boolean;
   depths: Depth[];
   runs_per_user_day: number;
   chat_per_user_day: number;

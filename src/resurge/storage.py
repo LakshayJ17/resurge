@@ -157,6 +157,12 @@ class Storage:
     def update_run(self, run_id: str, **fields: Any) -> None:
         if not fields:
             return
+        if not getattr(self, "_run_cols", None):
+            with self._lock:
+                self._run_cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(runs)")}
+        bad = set(fields) - self._run_cols
+        if bad:  # column names go into the SQL text, so only real columns may pass
+            raise ValueError(f"unknown run fields: {sorted(bad)}")
         cols, vals = [], []
         for k, v in fields.items():
             cols.append(f"{k}=?")

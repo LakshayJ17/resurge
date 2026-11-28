@@ -63,8 +63,9 @@ from ..config import load_settings
 from ..input_guard import INJECTION_REPLY, InputRejected, screen_brief_inputs, screen_chat, website_input
 from ..schemas import Depth, ResearchBrief, ResearchReport
 from ..storage import Storage
-from .accounts import AccountError, Accounts, RateLimiter, User, canonical_email, start_of_day
+from .accounts import AccountError, Accounts, RateLimiter, TokenBucket, User, canonical_email, start_of_day
 from .app import ChatRequest
+from .captcha import DEFAULT_MAX_NUMBER, ProofOfWork
 from .progress import PHASES, depth_of, summarize
 
 log = logging.getLogger(__name__)
@@ -83,7 +84,15 @@ HOSTED_FORMATS = {"charts", "html", "pdf", "pptx", "json", "site"}
 NO_STORE = {"Cache-Control": "no-store"}
 SECURITY_HEADERS = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "X-Frame-Options": "DENY",
                     "Cross-Origin-Opener-Policy": "same-origin",
-                    "Permissions-Policy": "camera=(), microphone=(), geolocation=()"}
+                    # other sites may not embed this site's files (report images, PDFs, API answers)
+                    "Cross-Origin-Resource-Policy": "same-origin",
+                    "X-Permitted-Cross-Domain-Policies": "none",
+                    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), "
+                                          "browsing-topics=()"}
+# JSON answers never need to load or run anything
+API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+# no request limit for the health check (the container's own probe) or content-hashed static files
+UNLIMITED_PATHS = ("/healthz", "/_next/static/")
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 # files a run folder may serve: the report page, its site, charts and the downloads (never report.json or anything
 # else a run might leave there)
@@ -100,6 +109,13 @@ def _origin_of(url: str) -> str:
     if parts.scheme not in ("http", "https") or not parts.hostname:
         return ""
     return f"{parts.scheme}://{parts.netloc.lower()}"
+
+
+def _is_admin_page(path: str) -> bool:
+    """The exported admin page in any of its forms: /admin, /admin.html, /admin.txt, /admin/... (case-insensitive,
+    like macOS's file system)."""
+    first = path.strip("/").split("/", 1)[0].lower()
+    return first.split(".", 1)[0] == "admin"
 
 
 def _hostname(host_header: str) -> str:
@@ -170,6 +186,13 @@ class HostedConfig:
     allowed_depths: list[str] = field(default_factory=lambda: [d.strip() for d in
                                                                os.getenv("RESURGE_ALLOWED_DEPTHS", "quick,standard").split(",")
                                                                if d.strip() in {"quick", "standard", "deep"}] or ["quick"])
+    # self-hosted proof-of-work bot check on sign-up and log-in (resurge.web.captcha); RESURGE_CAPTCHA=off disables it
+    captcha: bool = field(default_factory=lambda: os.getenv("RESURGE_CAPTCHA", "on").strip().lower()
+                          not in ("0", "off", "false", "no"))
+    captcha_max_number: int = field(default_factory=lambda: _env_int("RESURGE_CAPTCHA_MAX", DEFAULT_MAX_NUMBER))
+    # general request limit per network on everything but static files: a burst, then a steady rate per second
+    request_burst: int = field(default_factory=lambda: _env_int("RESURGE_REQUEST_BURST", 120))
+    request_rate: float = field(default_factory=lambda: float(os.getenv("RESURGE_REQUEST_RATE", "2") or 2))
     turnstile_site_key: str = field(default_factory=lambda: os.getenv("TURNSTILE_SITE_KEY", "").strip())
     turnstile_secret: str = field(default_factory=lambda: os.getenv("TURNSTILE_SECRET_KEY", "").strip())
     public_url: str = field(default_factory=lambda: os.getenv("RESURGE_PUBLIC_URL", "").strip().rstrip("/"))
@@ -226,11 +249,13 @@ class SignupBody(BaseModel):
     password: str = Field("", max_length=1000)
     website: str = Field("", max_length=500)  # honeypot: the field is invisible to people
     turnstile: str = Field("", max_length=4096)
+    captcha: str = Field("", max_length=2000)  # the solved proof-of-work puzzle (JSON)
 
 
 class LoginBody(BaseModel):
     email: str = Field("", max_length=320)
     password: str = Field("", max_length=1000)
+    captcha: str = Field("", max_length=2000)
 
 
 class PasswordBody(BaseModel):
@@ -273,7 +298,9 @@ class Frontend:
 
     def resolve(self, path: str) -> Path | None:
         path = path.strip("/")
-        if "\x00" in path or any(part in ("..", "") for part in path.split("/")[:-1]):
+        parts = path.split("/")
+        # no "." or ".." anywhere (the server has already decoded %2e) and no empty segments in between
+        if "\x00" in path or any(p in (".", "..") for p in parts) or "" in parts[:-1]:
             return None
         names = ["index.html"] if not path else [path, f"{path}.html", f"{path}/index.html"]
         for name in names:
@@ -337,6 +364,8 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     storage = Storage(settings.db_path)
     accounts = Accounts(settings.data_dir / "accounts.db", cfg.admin_emails)
     limiter = RateLimiter()
+    pow_check = ProofOfWork(cfg.captcha_max_number)
+    requests_bucket = TokenBucket(cfg.request_burst, cfg.request_rate) if cfg.request_burst > 0 else None
     frontend = Frontend(Path(cfg.frontend_dir).expanduser() if cfg.frontend_dir else default_frontend_dir(),
                         cfg.turnstile)
     queue: asyncio.Queue[str] = asyncio.Queue()
@@ -497,10 +526,14 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         if source not in allowed:
             raise HTTPException(403, "Request refused: it did not come from this site.")
 
-    def owned_job(user: User, run_id: str) -> dict:
+    def owned_job(user: User, run_id: str, request: Request | None = None) -> dict:
         job = accounts.job(run_id)
         if not job or (job["user_id"] != user.id and not user.is_admin):
             raise HTTPException(404, "Not found.")
+        # an admin opening someone else's analysis is logged (once an hour per analysis: a report page loads many files)
+        if job["user_id"] != user.id and limiter.hit(f"audit-view:{user.id}:{run_id}", 1, 3600):
+            accounts.audit("admin_viewed_analysis", user_id=user.id, email=user.email,
+                           ip=client_ip(request) if request else "", detail=f"{run_id} of user {job['user_id']}")
         return job
 
     def reply(data: dict | None = None, status_code: int = 200) -> JSONResponse:
@@ -545,6 +578,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
 
     def session_view(user: User | None) -> dict:
         conf = {"signup_open": cfg.signup_open, "turnstile_site_key": cfg.turnstile_site_key if cfg.turnstile else "",
+                "captcha": cfg.captcha,
                 "depths": cfg.allowed_depths, "runs_per_user_day": cfg.runs_per_user_day,
                 "chat_per_user_day": cfg.chat_per_user_day, "private_mode": cfg.private_mode}
         me = None
@@ -581,9 +615,17 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         if length > MAX_BODY:
             return JSONResponse({"detail": "Request too large."}, status_code=413,
                                 headers={**SECURITY_HEADERS, **NO_STORE})
+        if requests_bucket is not None and not request.url.path.startswith(UNLIMITED_PATHS):
+            wait = requests_bucket.take(client_ip(request))
+            if wait:
+                return JSONResponse({"detail": "Too many requests. Please slow down and try again shortly."},
+                                    status_code=429, headers={**SECURITY_HEADERS, **NO_STORE,
+                                                              "Retry-After": str(max(1, round(wait)))})
         resp = await call_next(request)
         for k, v in SECURITY_HEADERS.items():
             resp.headers.setdefault(k, v)
+        if resp.headers.get("content-type", "").startswith("application/json"):
+            resp.headers.setdefault("Content-Security-Policy", API_CSP)
         if secure_cookies(request):
             resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return resp
@@ -617,6 +659,19 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     def get_session(request: Request):
         return reply(session_view(current_user(request)))
 
+    @app.get("/api/challenge")
+    def challenge():
+        """A fresh proof-of-work puzzle for the sign-up and log-in forms (the browser solves it automatically)."""
+        return reply(pow_check.issue() if cfg.captcha else {"enabled": False})
+
+    def captcha_ok(solution: str, email: str, ip: str) -> bool:
+        if not cfg.captcha or pow_check.verify(solution):
+            return True
+        accounts.audit("captcha_failed", email=canonical_email(email)[:120], ip=ip)
+        return False
+
+    CAPTCHA_MSG = "The automatic check that you are not a bot did not finish. Please try again."
+
     async def verify_turnstile(token: str, ip: str) -> bool:
         if not cfg.turnstile:
             return True
@@ -640,6 +695,8 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         if not limiter.hit(f"signup:{ip}", 5, 3600) or accounts.signups_from_ip(ip, time.time() - 86400) >= 5:
             accounts.audit("signup_throttled", email=body.email, ip=ip)
             return fail("Too many sign-ups from your network. Try tomorrow.", 429)
+        if not captcha_ok(body.captcha, body.email, ip):
+            return fail(CAPTCHA_MSG)
         if not await verify_turnstile(body.turnstile, ip):
             return fail("Please complete the check that you are human.")
         if cfg.pwned_check and len(body.password) >= 10 and await pwned_count(body.password) > 0:
@@ -660,6 +717,8 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         if not limiter.hit(f"login-ip:{ip}", 20, 900) or not limiter.hit(f"login-email:{key}", 8, 900):
             accounts.audit("login_throttled", email=key, ip=ip)
             return fail("Too many attempts. Please wait a while and try again.", 429)
+        if not captcha_ok(body.captcha, body.email, ip):  # before the (costly) password check
+            return fail(CAPTCHA_MSG)
         try:
             user = await hashed(accounts.authenticate, body.email, body.password, ip)
         except AccountError as e:
@@ -804,7 +863,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     @app.get("/api/analyses/{run_id}")
     def analysis(request: Request, run_id: str):
         user = require_user(request)
-        job = owned_job(user, run_id)
+        job = owned_job(user, run_id, request)
         out = job_view(job)
         out["position"] = accounts.queue_position(run_id)
         depth = depth_of(job.get("brief"))
@@ -839,7 +898,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
     @app.get("/a/{run_id}/{name:path}")
     def report_file(request: Request, run_id: str, name: str):
         user = require_user(request)
-        owned_job(user, run_id)
+        owned_job(user, run_id, request)
         row = storage.get_run(run_id)
         if not row or not row.get("report_dir"):
             raise HTTPException(404, "Not found.")
@@ -869,7 +928,7 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         from .. import rag
 
         user = require_user(request)
-        owned_job(user, run_id)
+        owned_job(user, run_id, request)
         try:
             st = rag.status(settings, run_id)
         except Exception:  # noqa: BLE001
@@ -882,13 +941,16 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
 
         same_origin(request)
         user = require_user(request)
-        job = owned_job(user, run_id)
+        job = owned_job(user, run_id, request)
         if job["status"] != "done":
             raise HTTPException(409, "This analysis is not finished yet.")
         if paused(user):
             raise HTTPException(429, PAUSED_MSG)
         if not user.is_admin and accounts.usage_since(user.id, "chat", start_of_day()) >= cfg.chat_per_user_day:
             raise HTTPException(429, f"You have asked {cfg.chat_per_user_day} questions today. More tomorrow.")
+        # a burst limit too: the daily quota alone would let a script fire all its questions (model calls) at once
+        if not user.is_admin and not limiter.hit(f"chat-burst:{user.id}", 6, 60):
+            raise HTTPException(429, "You are asking very quickly. Please wait a minute and try again.")
         ok, history = screen_chat(req.question, [t.model_dump() for t in req.history])
         accounts.record_usage(user.id, "chat")
         if not ok:
@@ -915,6 +977,8 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         user = require_user(request)
         if not user.is_admin:
             raise HTTPException(404, "Not found.")
+        if limiter.hit(f"audit-panel:{user.id}", 1, 600):  # the panel shows every account: log who opened it
+            accounts.audit("admin_viewed_panel", user_id=user.id, email=user.email, ip=client_ip(request))
         users = accounts.list_users()
         emails = {u["id"]: u["email"] for u in users}
         jobs = [{**job_view(j), "email": emails.get(j["user_id"], "(deleted)"), "error": j.get("error")}
@@ -934,17 +998,27 @@ def create_hosted_app(config: HostedConfig | None = None, settings=None) -> Fast
         user = require_user(request)
         if not user.is_admin or action not in ("disable", "enable") or user_id == user.id or not 0 < user_id < 2 ** 53:
             raise HTTPException(404, "Not found.")
-        accounts.set_disabled(user_id, action == "disable", by=user.email)
+        accounts.set_disabled(user_id, action == "disable", by=user.email, ip=client_ip(request))
         return reply()
 
     # -------------------------------------------------------------- website
     @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-    def website(path: str):
+    def website(request: Request, path: str):
         if path.startswith("api/") or path == "api":
             raise HTTPException(404, "Not found.")
+        def admin_only(p: str) -> bool:
+            user = current_user(request)
+            return _is_admin_page(p) and not (user and user.is_admin)
+
+        # the admin page does not exist for anyone else (its API refuses them anyway); checked on the requested path
+        # and again on the file that would be served, so no spelling of the path can reach it
+        if admin_only(path):
+            return frontend.not_found()
         if not frontend.built:
             return HTMLResponse(NOT_BUILT, status_code=503, headers={"Cache-Control": "no-store"})
         page = frontend.resolve(path)
+        if page and admin_only(page.relative_to(frontend.root).as_posix()):
+            return frontend.not_found()
         return frontend.response(page) if page else frontend.not_found()
 
     return app

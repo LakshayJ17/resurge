@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { post, safeNext } from "@/lib/api";
+import { PuzzleCache } from "@/lib/pow";
 import type { Session } from "@/lib/types";
 import { Problem } from "../RequireUser";
 import { useSession } from "../SessionProvider";
@@ -21,23 +22,32 @@ export function AuthView({ mode }: { mode: "signup" | "login" }) {
   const onToken = useCallback((t: string) => setToken(t), []);
   const config = session?.config;
   const signup = mode === "signup";
+  const botCheck = !!config?.captcha;
+  const puzzles = useRef(new PuzzleCache());
 
   useEffect(() => {
     if (session?.user) router.replace(safeNext(new URLSearchParams(window.location.search).get("next")));
   }, [session, router]);
+
+  // solve the bot-check puzzle while the person types, so sending the form does not wait for it
+  useEffect(() => {
+    if (botCheck) puzzles.current.prepare();
+  }, [botCheck]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const body = signup ? { email, password, website, turnstile: token } : { email, password };
+      const captcha = botCheck ? await puzzles.current.take() : "";
+      const body = signup ? { email, password, website, turnstile: token, captcha } : { email, password, captcha };
       const s = await post<Session>(signup ? "/api/signup" : "/api/login", body);
       setSession(s);
       router.replace(safeNext(new URLSearchParams(window.location.search).get("next")));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setBusy(false);
+      if (botCheck) puzzles.current.prepare(); // each puzzle works once: get the next one ready
     }
   }
 
