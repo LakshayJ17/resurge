@@ -45,6 +45,16 @@ def model_name() -> str:
     return (os.getenv("RESURGE_EMBED_MODEL") or "").strip() or DEFAULT_MODEL
 
 
+def batch_size() -> int:
+    """Passages embedded at once. Each batch is padded to its longest passage, so working memory grows fast with the
+    batch: indexing a quick run peaked at about 1.3 GB with 64 and 0.4 GB with 8, and 8 was also faster. The default
+    therefore fits a 1 GB server; RESURGE_EMBED_BATCH changes it."""
+    try:
+        return max(1, min(256, int(os.getenv("RESURGE_EMBED_BATCH") or 8)))
+    except ValueError:
+        return 8
+
+
 class FastEmbedder:
     """Lazy, thread-safe wrapper around ``fastembed.TextEmbedding``."""
 
@@ -91,7 +101,7 @@ class FastEmbedder:
             return []
         prefix = _DOC_PREFIX.get(self.name.lower(), "")
         model = self._load()
-        return [v.tolist() for v in model.embed([prefix + t for t in texts], batch_size=64)]
+        return [v.tolist() for v in model.embed([prefix + t for t in texts], batch_size=batch_size())]
 
     def embed_query(self, text: str) -> list[float]:
         prefix = _QUERY_PREFIX.get(self.name.lower(), "")

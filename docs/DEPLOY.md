@@ -4,7 +4,7 @@ People open a link, read what Resurge is on the landing page, create an account,
 get the report. Nothing to install on their side.
 
 ```
-Browser --HTTPS--> Caddy or Cloudflare Tunnel --> resurge serve (Docker: website + API) --> free LLM APIs, public web
+Browser --HTTPS--> Caddy (or a Cloudflare Tunnel) --> resurge serve (Docker: website + API) --> free LLM APIs, public web
                                                        |
                                                        +-- /data volume: accounts, research database, reports, chat index
 ```
@@ -66,58 +66,107 @@ Security built in:
 - **Accountability:** account deletion removes the user's analyses and reports; admins can disable accounts; every
   security event (log-ins, failures, lockouts, rejected input, guardrail blocks, blocked chat) is in the audit log on
   `/admin`. Size the daily caps to your free quotas: one quick
-analysis uses about 25-45 model calls.
+analysis uses about 25 to 45 model calls.
 
-## Option 1 (recommended): Oracle Cloud Always Free server
+## 1. Get a server
 
-Always on, a real disk, and enough memory. Oracle asks for a card to verify the account; Always Free resources are not
-charged. Caveats: free ARM capacity is sometimes unavailable in a region (retry or pick another), and Oracle may
-reclaim an Always Free instance it considers idle (see Oracle's Always Free documentation for the current rules).
+Any Ubuntu 24.04 server with Docker works. Two free ones:
 
-1. **Create the server.** Pick the home region closest to your visitors when you sign up (it can't be changed later;
-   in India: Mumbai or Hyderabad). Oracle Cloud console: Compute > Instances > Create. Image: Ubuntu 24.04. Shape:
-   Ampere (VM.Standard.A1.Flex) with 2 OCPU and 12 GB memory, which fits the free allowance (reported as halved to
-   2 OCPU / 12 GB for free accounts in June 2026). Add your SSH key.
-2. **Install Docker** (on the server):
-   ```bash
-   sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 git
-   sudo usermod -aG docker $USER && newgrp docker
-   ```
-3. **Get the code and settings:**
-   ```bash
-   git clone <your repository URL> resurge && cd resurge
-   cp .env.example .env && nano .env   # add at least one free LLM key; set the hosted settings above
-   ```
-   Keys go only into `.env` on the server. Never commit `.env`.
-4. **Pick how people reach it over HTTPS:**
-   - **Caddy (free, needs a hostname):** get a free subdomain, for example at duckdns.org, pointed at the server's
-     public IP. In Oracle's VCN security list allow inbound TCP 80 and 443, and on the server
-     `sudo iptables -I INPUT -p tcp -m multiport --dports 80,443 -j ACCEPT`. Set `DOMAIN=` and
-     `RESURGE_PUBLIC_URL=https://<your domain>` in `.env`, then:
-     ```bash
-     docker compose --profile caddy up -d --build
-     ```
-   - **Cloudflare Tunnel (no open ports; needs a domain on Cloudflare):** in Cloudflare Zero Trust create a tunnel,
-     add a public hostname whose service is `http://resurge:8000`, copy the token into `CLOUDFLARE_TUNNEL_TOKEN=`,
-     set `RESURGE_PUBLIC_URL` and `RESURGE_TRUST_PROXY=cloudflare`, then `docker compose --profile tunnel up -d --build`.
-5. **Make yourself admin:** set `RESURGE_ADMIN_EMAILS=you@example.com` in `.env`, run `docker compose up -d`, then
-   create the account on the server: `docker compose exec resurge resurge admin you@example.com` (it asks for a
-   password). Web sign-up refuses that address, so nobody can claim it first. `/admin` shows accounts, today's usage
-   and the queue.
-6. **Turn on the bot check (recommended):** Cloudflare dashboard > Turnstile > add a widget for your hostname, put
-   the two keys in `.env`, `docker compose up -d`.
+### Azure for Students (no card needed)
 
-**Updates:** `git pull && docker compose up -d --build`. **Backups:** the `resurge-data` volume holds everything;
-`docker run --rm -v resurge_resurge-data:/data -v $PWD:/backup alpine tar czf /backup/resurge-data.tgz /data`.
-**Logs:** `docker compose logs -f resurge`.
+Sign up with a college email at [azure.microsoft.com/free/students](https://azure.microsoft.com/free/students). It
+gives $100 of credit for 12 months plus 750 free hours a month of the B1s, B2ats v2 and B2pts v2 servers, which is
+enough to run one all month. The disk and public IP draw a few dollars a month from the credit; check what's left
+under Cost Management > Credits. When the offer ends, Azure stops the resources instead of charging you.
 
-## Other hosts
+1. **Find your allowed regions.** Student subscriptions may only deploy to some regions: Portal > Policy >
+   Assignments > "Allowed resource deployment regions" > Parameters. Pick the closest one; any other gives
+   `RequestDisallowedByAzure`.
+2. **Create the server:** Portal > Virtual machines > Create. Image Ubuntu Server 24.04 LTS (x64), size
+   **B2ats v2** (2 vCPU, 1 GB), SSH public key authentication, inbound ports 22, 80 and 443, OS disk Standard SSD.
+   Afterwards, in Networking, limit the SSH rule to your own IP address.
 
-- **Any VPS or home server with Docker:** same steps as Oracle from step 2.
-- **Hugging Face Spaces (Docker):** Docker Spaces now appear to need a paid plan, the free disk is wiped on restart
-  (accounts and reports would be lost) and Spaces sleep when unused. Check the current terms before relying on it.
-- **Render free tier:** not suitable: about 512 MB of memory, a fraction of a CPU, sleeps after 15 minutes without
-  traffic and wipes its disk on restart, while an analysis runs for 10-30 minutes.
+### Oracle Cloud Always Free
+
+No time limit, and 2 OCPU / 12 GB of Arm (Ampere A1) capacity. Oracle asks for a credit card, or a Visa or
+Mastercard debit card that works without a PIN, to verify the account; Always Free resources are not charged.
+Two caveats from Oracle's
+[Always Free rules](https://docs.oracle.com/en-us/iaas/Content/FreeTier/resourceref.htm): free Arm capacity is
+sometimes unavailable ("out of host capacity": retry later), and an instance whose CPU, network and memory use all
+stay under 20% for 7 days may be reclaimed, which a mostly idle web app can be, so keep backups. Oracle suggests
+upgrading to Pay As You Go when capacity is short; it still doesn't charge for Always Free resources.
+
+1. Sign up at [signup.oraclecloud.com](https://signup.oraclecloud.com). The home region can't be changed later,
+   and Always Free servers can only be created there.
+2. Compute > Instances > Create: image Canonical Ubuntu 24.04, shape VM.Standard.A1.Flex with 2 OCPU and 12 GB,
+   and save the generated SSH key. The login user is `ubuntu`.
+3. Open ports 80 and 443: in the instance's subnet, add ingress rules to the default security list for TCP 80 and
+   443 from `0.0.0.0/0`, and on the server (Oracle's Ubuntu images block them by default):
+   `sudo iptables -I INPUT -p tcp -m multiport --dports 80,443 -j ACCEPT && sudo netfilter-persistent save`.
+
+## 2. Get a free web address
+
+Caddy needs a hostname to get an HTTPS certificate from Let's Encrypt. At [duckdns.org](https://www.duckdns.org),
+sign in, create a subdomain (for example `resurge-yourname.duckdns.org`) and set it to the server's public IP.
+
+## 3. Set up the server
+
+```bash
+ssh ubuntu@<server-ip>        # azureuser@ on Azure
+curl -fsSL https://raw.githubusercontent.com/LakshayJ17/resurge/web-app/deploy/setup-server.sh | bash
+```
+
+[`deploy/setup-server.sh`](../deploy/setup-server.sh) adds 4 GB of swap (a 1 GB server needs it), installs Docker
+and git, and clones the code into `~/resurge`. Then create `~/resurge/.env` with at least one free LLM key (Groq
+is required for the guardrails) and these settings:
+
+```bash
+DOMAIN=resurge-yourname.duckdns.org
+RESURGE_PUBLIC_URL=https://resurge-yourname.duckdns.org
+RESURGE_CONTACT=https://resurge-yourname.duckdns.org
+RESURGE_ADMIN_EMAILS=you@example.com
+```
+
+Keys go only into `.env` on the server. Never commit it.
+
+## 4. Start it
+
+```bash
+cd ~/resurge
+docker compose --profile caddy pull
+docker compose --profile caddy up -d
+docker compose exec resurge resurge admin you@example.com    # asks for a password
+```
+
+The image comes from GitHub's container registry, built by
+[`.github/workflows/docker-image.yml`](../.github/workflows/docker-image.yml) on every push. After the first build,
+make the package public once (GitHub > your profile > Packages > resurge > Package settings > Change visibility); it
+contains no keys. To build on the server instead, run `docker compose --profile caddy up -d --build`.
+
+Open your address, log in as the admin, and start an analysis. Web sign-up refuses admin addresses, so nobody can
+claim yours first. `/admin` shows accounts, today's usage and the queue. Caddy gets the certificate on the first
+visit, which can take a minute.
+
+**On a 1 GB server** keep `RESURGE_MAX_CONCURRENT_RUNS=1` (the default). Building a report and building its chat
+index each peak at about 400 MB; the swap absorbs the rest.
+
+**HTTPS without opening ports:** with a domain on Cloudflare, a Cloudflare Tunnel works instead of Caddy: create a
+tunnel whose public hostname points at `http://resurge:8000`, set `CLOUDFLARE_TUNNEL_TOKEN=`, `RESURGE_PUBLIC_URL`
+and `RESURGE_TRUST_PROXY=cloudflare`, then use `--profile tunnel`. Its free Turnstile bot check
+(`TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`) can then protect sign-up.
+
+## Running it
+
+| Task | Command (in `~/resurge` on the server) |
+|---|---|
+| Deploy new code | `git pull && docker compose --profile caddy pull && docker compose --profile caddy up -d` |
+| Logs | `docker compose logs -f resurge` |
+| Status and memory | `docker compose ps` and `docker stats --no-stream` |
+| Back up accounts and reports | `docker run --rm -v resurge_resurge-data:/data -v $PWD:/backup alpine tar czf /backup/resurge-data.tgz /data` |
+
+Not suitable: **Render** and similar free tiers (about 512 MB, sleep after 15 minutes, disk wiped on restart, while an
+analysis runs for 10 to 30 minutes) and **Hugging Face Spaces** (Docker Spaces need a paid plan; the free disk is
+wiped on restart).
 
 ## Trying it locally first
 

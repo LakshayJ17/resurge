@@ -3,11 +3,20 @@
 #   docker compose up -d                        app only, on http://127.0.0.1:8000 (put HTTPS in front)
 #   docker compose --profile caddy up -d        + automatic HTTPS for DOMAIN (opens ports 80 and 443)
 #   docker compose --profile tunnel up -d       + Cloudflare Tunnel (HTTPS without opening any port)
+#
+# The image is built by GitHub Actions (.github/workflows/docker-image.yml) and pulled with `docker compose pull`,
+# so a small server never has to build it. `--build` builds it on the server instead.
+
+x-logs: &logs  # keep container logs from slowly filling the disk
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
 services:
   resurge:
     build: .
-    image: resurge:latest
+    image: ${RESURGE_IMAGE:-ghcr.io/lakshayj17/resurge:latest}
     restart: unless-stopped
+    logging: *logs
     env_file: .env
     environment:
       # the app is only reachable through Caddy or the tunnel, which set the client-IP header. Caddy: 1 (reads
@@ -23,6 +32,7 @@ services:
     image: caddy:2-alpine
     profiles: ["caddy"]
     restart: unless-stopped
+    logging: *logs
     depends_on: [resurge]
     ports: ["80:80", "443:443"]
     environment:
